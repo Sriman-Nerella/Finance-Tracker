@@ -1,11 +1,13 @@
 package com.example.financetracker.ui.settings
 
-import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.financetracker.ai.llm.LlmAvailability
 import com.example.financetracker.ai.llm.LlmBackend
 import com.example.financetracker.ai.llm.LlmManager
+import com.example.financetracker.data.prefs.ThemeMode
+import com.example.financetracker.data.prefs.UiPrefs
+import com.example.financetracker.domain.model.Money
 import com.example.financetracker.domain.session.SessionRepository
 import com.example.financetracker.domain.session.SessionState
 import com.example.financetracker.domain.session.SyncController
@@ -29,7 +31,9 @@ data class SettingsUiState(
     /** Null while the download has not reported progress yet (show indeterminate). */
     val downloadProgress: Float? = null,
     val gemmaEnabled: Boolean = false,
-    val signingIn: Boolean = false,
+    val allowance: Money? = null,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val localAiEnabled: Boolean = true,
     /** One-line error/info message for the last action. */
     val message: String? = null,
 )
@@ -38,6 +42,7 @@ class SettingsViewModel(
     private val session: SessionRepository,
     private val sync: SyncController,
     private val llm: LlmManager,
+    private val prefs: UiPrefs,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SettingsUiState())
@@ -56,7 +61,28 @@ class SettingsViewModel(
         viewModelScope.launch {
             llm.gemmaEnabled.collect { e -> _state.update { it.copy(gemmaEnabled = e) } }
         }
+        viewModelScope.launch {
+            prefs.allowance.collect { a -> _state.update { it.copy(allowance = a) } }
+        }
+        viewModelScope.launch {
+            prefs.themeMode.collect { m -> _state.update { it.copy(themeMode = m) } }
+        }
+        viewModelScope.launch {
+            prefs.localAiEnabled.collect { e -> _state.update { it.copy(localAiEnabled = e) } }
+        }
         refreshAvailability()
+    }
+
+    fun setAllowance(value: Money?) {
+        viewModelScope.launch { prefs.setAllowance(value) }
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { prefs.setThemeMode(mode) }
+    }
+
+    fun setLocalAiEnabled(enabled: Boolean) {
+        viewModelScope.launch { prefs.setLocalAiEnabled(enabled) }
     }
 
     fun refreshAvailability() {
@@ -68,32 +94,6 @@ class SettingsViewModel(
                     geminiAvailability = gemini ?: LlmAvailability.Unavailable,
                     gemmaAvailability = gemma ?: LlmAvailability.Unavailable,
                 )
-            }
-        }
-    }
-
-    fun signInWithGoogle(activity: Activity) {
-        if (_state.value.signingIn) return
-        _state.update { it.copy(signingIn = true, message = null) }
-        viewModelScope.launch {
-            val result = session.signInWithGoogle(activity)
-            _state.update {
-                it.copy(
-                    signingIn = false,
-                    message = result.exceptionOrNull()?.let { e -> e.message ?: "Sign-in failed" },
-                )
-            }
-        }
-    }
-
-    fun signOut(wipeLocal: Boolean) {
-        viewModelScope.launch {
-            try {
-                session.signOut(wipeLocal)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _state.update { it.copy(message = "Sign-out failed: ${e.message ?: "unknown error"}") }
             }
         }
     }

@@ -22,6 +22,8 @@ class DefaultChatEntryPipeline(
     private val categories: CategoryRepository,
     private val validator: LlmRefinementValidator = LlmRefinementValidator(),
     private val timeoutMs: Long = 4_000L,
+    /** User switch from the chat + sheet; when false the rule parser's result is used as-is. */
+    private val localAiEnabled: suspend () -> Boolean = { true },
 ) : ChatEntryPipeline {
 
     override suspend fun parse(text: String, today: LocalDate): ParseResult {
@@ -47,6 +49,7 @@ class DefaultChatEntryPipeline(
     }
 
     private suspend fun refine(text: String, entries: List<ParsedEntry>): List<ParsedEntry>? {
+        if (!localAiEnabled()) return null
         val model = llm.current()
         if (model.availability() != LlmAvailability.Available) return null
         val allowed = categories.getAll()

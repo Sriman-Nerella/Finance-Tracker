@@ -9,6 +9,7 @@ import com.example.financetracker.auth.DefaultSessionRepository
 import com.example.financetracker.auth.GoogleSignInHelper
 import com.example.financetracker.data.db.AppDatabase
 import com.example.financetracker.data.prefs.SessionStore
+import com.example.financetracker.data.prefs.UiPrefs
 import com.example.financetracker.data.remote.RemoteDataSource
 import com.example.financetracker.data.remote.SupabaseProvider
 import com.example.financetracker.data.repo.OfflineCategoryRepository
@@ -23,6 +24,7 @@ import com.example.financetracker.domain.session.SyncController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class DefaultAppContainer(context: Context) : AppContainer {
@@ -45,7 +47,12 @@ class DefaultAppContainer(context: Context) : AppContainer {
     override val llm = llmManager
 
     override val chatPipeline: ChatEntryPipeline =
-        DefaultChatEntryPipeline(RuleBasedEntryParser(), llm, categories)
+        DefaultChatEntryPipeline(
+            parser = RuleBasedEntryParser(),
+            llm = llm,
+            categories = categories,
+            localAiEnabled = { UiPrefs.get(appContext).localAiEnabled.first() },
+        )
 
     override val session: SessionRepository =
         DefaultSessionRepository(sessionStore, supabase, GoogleSignInHelper(), db, sync)

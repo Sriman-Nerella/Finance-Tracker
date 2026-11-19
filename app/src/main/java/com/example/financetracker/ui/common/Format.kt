@@ -1,17 +1,17 @@
 package com.example.financetracker.ui.common
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.outlined.DirectionsCar
-import androidx.compose.material.icons.outlined.LocalGroceryStore
-import androidx.compose.material.icons.outlined.MedicalServices
-import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material.icons.outlined.Movie
-import androidx.compose.material.icons.outlined.Payments
-import androidx.compose.material.icons.outlined.ReceiptLong
-import androidx.compose.material.icons.outlined.Restaurant
-import androidx.compose.material.icons.outlined.Savings
-import androidx.compose.material.icons.outlined.ShoppingBag
+import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
+import androidx.compose.material.icons.rounded.Category
+import androidx.compose.material.icons.rounded.DirectionsCar
+import androidx.compose.material.icons.rounded.LocalGroceryStore
+import androidx.compose.material.icons.rounded.MedicalServices
+import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.Payments
+import androidx.compose.material.icons.rounded.Restaurant
+import androidx.compose.material.icons.rounded.Savings
+import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.financetracker.domain.model.Money
 import java.time.LocalDate
@@ -63,20 +63,31 @@ fun LocalDate.dayHeaderLabel(today: LocalDate = LocalDate.now()): String = when 
     else -> format(weekdayFormat)
 }
 
+/** "−₹450" for expenses, "+₹85,000" for income (true minus sign). */
+fun Money.signedInr(income: Boolean): String = (if (income) "+" else "−") + Money(kotlin.math.abs(minor)).formatInr()
+
+private val monthShortFormat = DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH)
+
+/** "NOV 2026" for month headers. */
+fun YearMonth.monthHeader(): String = format(monthShortFormat).uppercase(Locale.ENGLISH)
+
+/** "Thursday, 19 Nov 2026" */
+fun LocalDate.formatLong(): String = format(DateTimeFormatter.ofPattern("EEEE, d MMM yyyy", Locale.ENGLISH))
+
 /** "November 2026" */
 fun YearMonth.monthLabel(): String = format(monthFormat)
 
 /** Maps DefaultCategories icon keys (and any other Material key) to an icon. */
 fun categoryIcon(key: String): ImageVector = when (key) {
-    "restaurant" -> Icons.Outlined.Restaurant
-    "local_grocery_store" -> Icons.Outlined.LocalGroceryStore
-    "directions_car" -> Icons.Outlined.DirectionsCar
-    "movie" -> Icons.Outlined.Movie
-    "shopping_bag" -> Icons.Outlined.ShoppingBag
-    "receipt_long" -> Icons.Outlined.ReceiptLong
-    "medical_services" -> Icons.Outlined.MedicalServices
-    "more_horiz" -> Icons.Outlined.MoreHoriz
-    "payments" -> Icons.Outlined.Payments
-    "savings" -> Icons.Outlined.Savings
-    else -> Icons.Filled.Category
+    "restaurant" -> Icons.Rounded.Restaurant
+    "local_grocery_store" -> Icons.Rounded.LocalGroceryStore
+    "directions_car" -> Icons.Rounded.DirectionsCar
+    "movie" -> Icons.Rounded.Movie
+    "shopping_bag" -> Icons.Rounded.ShoppingBag
+    "receipt_long" -> Icons.AutoMirrored.Rounded.ReceiptLong
+    "medical_services" -> Icons.Rounded.MedicalServices
+    "more_horiz" -> Icons.Rounded.MoreHoriz
+    "payments" -> Icons.Rounded.Payments
+    "savings" -> Icons.Rounded.Savings
+    else -> Icons.Rounded.Category
 }

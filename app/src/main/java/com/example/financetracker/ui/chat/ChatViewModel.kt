@@ -5,6 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.financetracker.ai.ChatEntryPipeline
 import com.example.financetracker.ai.ParseResult
 import com.example.financetracker.ai.ParsedEntry
+import com.example.financetracker.ai.llm.LlmAvailability
+import com.example.financetracker.ai.llm.LlmBackend
+import com.example.financetracker.ai.llm.LlmManager
+import com.example.financetracker.data.prefs.UiPrefs
 import com.example.financetracker.domain.model.Category
 import com.example.financetracker.domain.model.Money
 import com.example.financetracker.domain.model.NewTransaction
@@ -16,6 +20,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -43,17 +48,32 @@ sealed interface ChatMessage {
     ) : ChatMessage
 }
 
+/** Whether this device can run a local model for chat. */
+sealed interface LocalModel {
+    data object Checking : LocalModel
+    data class Available(val name: String) : LocalModel
+    data object Unavailable : LocalModel
+}
+
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val input: String = "",
     val isParsing: Boolean = false,
     val categories: List<Category> = emptyList(),
-)
+    val localModel: LocalModel = LocalModel.Checking,
+    /** The user's switch in the + sheet. */
+    val localAiEnabled: Boolean = true,
+) {
+    /** True when messages are actually read by the on-device model. */
+    val usingLocalAi: Boolean get() = localAiEnabled && localModel is LocalModel.Available
+}
 
 class ChatViewModel(
     private val pipeline: ChatEntryPipeline,
     private val transactions: TransactionRepository,
     private val categories: CategoryRepository,
+    private val llm: LlmManager,
+    private val prefs: UiPrefs,
 ) : ViewModel() {
 
     private var nextId = 1L
@@ -64,8 +84,8 @@ class ChatViewModel(
             messages = listOf(
                 ChatMessage.Assistant(
                     id = 0L,
-                    text = "Hi! Type a date on the first line, then records below it, for example:\n" +
-                        "nov 19\ntea 15rs, lunch 200rs",
+                    text = "Tell me what you spent, like “lunch 200, auto 60”. " +
+                        "To log another day, put the date on the first line:\nnov 19\ntea 15rs, lunch 200rs",
                 ),
             ),
         ),
@@ -78,6 +98,30 @@ class ChatViewModel(
                 _state.update { it.copy(categories = list) }
             }
         }
+        viewModelScope.launch {
+            prefs.localAiEnabled.collect { on -> _state.update { it.copy(localAiEnabled = on) } }
+        }
+        viewModelScope.launch {
+            val model = try {
+                when {
+                    llm.availability(LlmBackend.GEMINI_NANO) == LlmAvailability.Available ->
+                        LocalModel.Available("Gemini Nano")
+                    llm.gemmaEnabled.first() && llm.availability(LlmBackend.GEMMA_LITERT) == LlmAvailability.Available ->
+                        LocalModel.Available("Gemma")
+                    else -> LocalModel.Unavailable
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                LocalModel.Unavailable
+            }
+            _state.update { it.copy(localModel = model) }
+        }
+    }
+
+    fun setLocalAiEnabled(enabled: Boolean) {
+        _state.update { it.copy(localAiEnabled = enabled) }
+        viewModelScope.launch { prefs.setLocalAiEnabled(enabled) }
     }
 
     fun onInputChange(text: String) {

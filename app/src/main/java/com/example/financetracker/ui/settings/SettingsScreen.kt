@@ -1,35 +1,58 @@
 package com.example.financetracker.ui.settings
 
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.AccountBalanceWallet
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.CloudSync
+import androidx.compose.material.icons.rounded.Contrast
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Memory
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Savings
+import androidx.compose.material.icons.rounded.SdStorage
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,309 +60,327 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.financetracker.BuildConfig
 import com.example.financetracker.ai.llm.LlmAvailability
 import com.example.financetracker.ai.llm.LlmBackend
+import com.example.financetracker.data.prefs.ThemeMode
+import com.example.financetracker.data.prefs.UiPrefs
 import com.example.financetracker.di.AppContainer
 import com.example.financetracker.domain.session.SessionState
 import com.example.financetracker.domain.session.SyncStatus
+import com.example.financetracker.ui.common.AllowanceDialog
+import com.example.financetracker.ui.common.FinanceCard
+import com.example.financetracker.ui.common.GroupTitle
+import com.example.financetracker.ui.common.ItemValue
+import com.example.financetracker.ui.common.ScreenTitleBar
+import com.example.financetracker.ui.common.SettingsItem
+import com.example.financetracker.ui.common.WidthClass
+import com.example.financetracker.ui.common.formatInr
+import com.example.financetracker.ui.theme.FinanceTheme
 import java.time.Duration
 import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+private enum class Section(val title: String, val icon: ImageVector) {
+    BUDGET("Budget", Icons.Rounded.Savings),
+    APPEARANCE("Appearance", Icons.Rounded.Palette),
+    ASK_AI("Ask AI", Icons.Rounded.AutoAwesome),
+    DATA("Data", Icons.Rounded.Cloud),
+    ABOUT("About", Icons.Rounded.Info),
+}
+
+/** Settings as grouped lists. Tablets show the section list on the left and the chosen section on the right. */
 @Composable
-fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
+fun SettingsScreen(container: AppContainer, widthClass: WidthClass, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
     val vm: SettingsViewModel = viewModel {
-        SettingsViewModel(container.session, container.sync, container.llm)
+        SettingsViewModel(container.session, container.sync, container.llm, UiPrefs.get(context))
     }
     val state by vm.state.collectAsStateWithLifecycle()
-    val activity = LocalContext.current.findActivity()
-    var showSignOut by rememberSaveable { mutableStateOf(false) }
+    var allowanceOpen by rememberSaveable { mutableStateOf(false) }
+    var selected by rememberSaveable { mutableStateOf(Section.BUDGET) }
+    val c = FinanceTheme.colors
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        AccountSection(
-            session = state.session,
-            signingIn = state.signingIn,
-            onSignIn = { activity?.let { vm.signInWithGoogle(it) } },
-            canSignIn = activity != null,
-            onSignOut = { showSignOut = true },
-        )
-
-        if (state.session is SessionState.SignedIn) {
-            BackupSection(status = state.sync, onBackUpNow = vm::syncNow)
-        }
-
-        AiSection(
-            state = state,
-            onDownload = vm::download,
-            onGemmaToggle = vm::setGemmaEnabled,
-        )
-
-        AboutSection()
-
-        state.message?.let { message ->
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-            )
+    val sectionContent: @Composable ColumnScope.(Section) -> Unit = { section ->
+        when (section) {
+            Section.BUDGET -> BudgetGroup(state) { allowanceOpen = true }
+            Section.APPEARANCE -> AppearanceGroup(state.themeMode, vm::setThemeMode)
+            Section.ASK_AI -> AiGroup(state, vm::setLocalAiEnabled, vm::download, vm::setGemmaEnabled)
+            Section.DATA -> DataGroup(state.session, state.sync, vm::syncNow)
+            Section.ABOUT -> AboutGroup()
         }
     }
 
-    if (showSignOut) {
-        SignOutDialog(
-            onDismiss = { showSignOut = false },
-            onKeep = {
-                showSignOut = false
-                vm.signOut(wipeLocal = false)
-            },
-            onWipe = {
-                showSignOut = false
-                vm.signOut(wipeLocal = true)
-            },
-        )
-    }
-}
-
-@Composable
-private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            content()
-        }
-    }
-}
-
-@Composable
-private fun AccountSection(
-    session: SessionState,
-    signingIn: Boolean,
-    canSignIn: Boolean,
-    onSignIn: () -> Unit,
-    onSignOut: () -> Unit,
-) {
-    SettingsSection(title = "Account") {
-        when (session) {
-            is SessionState.SignedIn -> {
-                Text(
-                    text = session.displayName?.takeIf { it.isNotBlank() } ?: "Signed in",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                session.email?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+    Box(modifier.fillMaxSize().background(c.bg)) {
+        if (widthClass == WidthClass.EXPANDED) {
+            Row(
+                Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding(),
+            ) {
+                Column(Modifier.width(300.dp).fillMaxHeight().padding(horizontal = 12.dp)) {
+                    ScreenTitleBar("Settings", modifier = Modifier.padding(start = 0.dp))
+                    Section.entries.forEach { s ->
+                        val active = s == selected
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp)
+                                .clip(CircleShape)
+                                .background(if (active) c.primarySoft else c.bg)
+                                .clickable { selected = s }
+                                .padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Icon(s.icon, contentDescription = null, tint = if (active) c.onPrimarySoft else c.inkMuted)
+                            Text(s.title, style = MaterialTheme.typography.labelLarge, color = if (active) c.onPrimarySoft else c.ink)
+                        }
+                    }
                 }
-                OutlinedButton(onClick = onSignOut) { Text("Sign out") }
-            }
-            else -> {
-                Text(
-                    text = "Data stays on this device. Sign in with Google to back up.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                val configured = BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank()
-                if (!configured) {
-                    Text(
-                        text = "Google sign-in isn't configured in this build.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                Button(
-                    onClick = onSignIn,
-                    enabled = configured && canSignIn && !signingIn,
+                VerticalDivider(color = c.line)
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(32.dp)
+                        .widthIn(max = 640.dp),
                 ) {
-                    Text(if (signingIn) "Signing in…" else "Sign in with Google")
+                    Text(selected.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 16.dp))
+                    sectionContent(selected)
+                    state.message?.let { Message(it) }
                 }
-                Text(
-                    text = "Your records on this device are kept and uploaded after you sign in.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            }
+        } else {
+            Column(
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .widthIn(max = 640.dp)
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .then(if (widthClass == WidthClass.MEDIUM) Modifier.navigationBarsPadding() else Modifier)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                ScreenTitleBar("Settings")
+                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 32.dp)) {
+                    Section.entries.forEach { s ->
+                        GroupTitle(s.title)
+                        sectionContent(s)
+                    }
+                    state.message?.let { Message(it) }
+                }
+            }
+        }
+    }
+
+    if (allowanceOpen) {
+        AllowanceDialog(
+            current = state.allowance,
+            onDismiss = { allowanceOpen = false },
+            onSave = {
+                vm.setAllowance(it)
+                allowanceOpen = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun Message(text: String) {
+    Text(text, style = MaterialTheme.typography.bodyMedium, color = FinanceTheme.colors.danger, modifier = Modifier.padding(top = 16.dp))
+}
+
+@Composable
+private fun Divider() = HorizontalDivider(color = FinanceTheme.colors.lineSoft)
+
+@Composable
+private fun Chevron() = Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = FinanceTheme.colors.inkMuted)
+
+@Composable
+private fun BudgetGroup(state: SettingsUiState, onEditAllowance: () -> Unit) {
+    FinanceCard {
+        SettingsItem(
+            icon = Icons.Rounded.AccountBalanceWallet,
+            title = "Monthly allowance",
+            subtitle = "What you plan to spend each month",
+            onClick = onEditAllowance,
+            trailing = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    ItemValue(state.allowance?.formatInr() ?: "Not set")
+                    Chevron()
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun AppearanceGroup(mode: ThemeMode, onChange: (ThemeMode) -> Unit) {
+    val c = FinanceTheme.colors
+    FinanceCard {
+        SettingsItem(icon = Icons.Rounded.Contrast, title = "Theme")
+        SingleChoiceSegmentedButtonRow(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+        ) {
+            val options = ThemeMode.entries
+            options.forEachIndexed { i, m ->
+                SegmentedButton(
+                    selected = mode == m,
+                    onClick = { onChange(m) },
+                    shape = SegmentedButtonDefaults.itemShape(index = i, count = options.size),
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = c.primarySoft,
+                        activeContentColor = c.onPrimarySoft,
+                        inactiveContainerColor = c.surface,
+                        inactiveContentColor = c.ink,
+                        activeBorderColor = c.outline,
+                        inactiveBorderColor = c.outline,
+                    ),
+                ) {
+                    Text(m.name.lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun BackupSection(status: SyncStatus, onBackUpNow: () -> Unit) {
-    SettingsSection(title = "Backup") {
-        when (status) {
-            SyncStatus.Disabled -> Text("Backup is off", style = MaterialTheme.typography.bodyMedium)
-            SyncStatus.Idle -> Text("Waiting for changes", style = MaterialTheme.typography.bodyMedium)
-            SyncStatus.Running -> {
-                Text("Backing up…", style = MaterialTheme.typography.bodyMedium)
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-            is SyncStatus.Done -> Text(
-                text = "Last backup ${relativeTime(status.at)}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            is SyncStatus.Failed -> Text(
-                text = "Backup failed: ${status.message}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
-        Button(
-            onClick = onBackUpNow,
-            enabled = status != SyncStatus.Running,
-        ) { Text("Back up now") }
-    }
-}
-
-@Composable
-private fun AiSection(
+private fun AiGroup(
     state: SettingsUiState,
+    onLocalAiChange: (Boolean) -> Unit,
     onDownload: (LlmBackend) -> Unit,
     onGemmaToggle: (Boolean) -> Unit,
 ) {
-    val gemmaAvailable = state.gemmaAvailability != null &&
-        state.gemmaAvailability !is LlmAvailability.Unavailable
-
-    SettingsSection(title = "On-device AI") {
-        Text(
-            text = "Active: ${backendLabel(state.activeBackend)}",
-            style = MaterialTheme.typography.bodyLarge,
+    val c = FinanceTheme.colors
+    val nanoReady = state.geminiAvailability is LlmAvailability.Available
+    val gemmaReady = state.gemmaAvailability is LlmAvailability.Available
+    val anyModel = nanoReady || (gemmaReady && state.gemmaEnabled)
+    val switchColors = SwitchDefaults.colors(
+        checkedTrackColor = c.primary,
+        checkedThumbColor = c.onPrimary,
+        uncheckedTrackColor = c.surface2,
+        uncheckedBorderColor = c.outline,
+        uncheckedThumbColor = c.outline,
+    )
+    FinanceCard {
+        SettingsItem(
+            icon = Icons.Rounded.Memory,
+            title = "On-device AI",
+            subtitle = when {
+                state.geminiAvailability == null -> "Checking this device…"
+                anyModel -> "Reads chat messages without sending them anywhere"
+                else -> "No local AI model available"
+            },
+            enabled = anyModel,
+            onClick = if (anyModel) ({ onLocalAiChange(!state.localAiEnabled) }) else null,
+            trailing = {
+                Switch(
+                    checked = anyModel && state.localAiEnabled,
+                    onCheckedChange = onLocalAiChange,
+                    enabled = anyModel,
+                    colors = switchColors,
+                )
+            },
         )
-        BackendRow(
-            name = backendLabel(LlmBackend.GEMINI_NANO),
-            backend = LlmBackend.GEMINI_NANO,
-            availability = state.geminiAvailability,
-            state = state,
-            onDownload = onDownload,
+        Divider()
+        ModelRow("Gemini Nano", "Built into supported phones", LlmBackend.GEMINI_NANO, state.geminiAvailability, state, onDownload)
+        Divider()
+        ModelRow("Gemma", "Downloaded model for other phones", LlmBackend.GEMMA_LITERT, state.gemmaAvailability, state, onDownload)
+        Divider()
+        SettingsItem(
+            icon = Icons.Rounded.SdStorage,
+            title = "Use Gemma when Gemini Nano is missing",
+            enabled = gemmaReady,
+            trailing = {
+                Switch(checked = state.gemmaEnabled, onCheckedChange = onGemmaToggle, enabled = gemmaReady, colors = switchColors)
+            },
         )
-        BackendRow(
-            name = backendLabel(LlmBackend.GEMMA_LITERT),
-            backend = LlmBackend.GEMMA_LITERT,
-            availability = state.gemmaAvailability,
-            state = state,
-            onDownload = onDownload,
-        )
-        HorizontalDivider()
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Use Gemma when Gemini Nano is unavailable",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f).padding(end = 12.dp),
-            )
-            Switch(
-                checked = state.gemmaEnabled,
-                onCheckedChange = onGemmaToggle,
-                enabled = gemmaAvailable,
-            )
-        }
     }
 }
 
 @Composable
-private fun BackendRow(
+private fun ModelRow(
     name: String,
+    description: String,
     backend: LlmBackend,
     availability: LlmAvailability?,
     state: SettingsUiState,
     onDownload: (LlmBackend) -> Unit,
 ) {
-    val isDownloadingThis = state.downloading == backend
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                Text(text = name, style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = availabilityText(availability, isDownloadingThis),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (availability is LlmAvailability.Downloadable && state.downloading == null) {
-                Button(onClick = { onDownload(backend) }) {
-                    Text("Download${formatApproxSize(availability.approxBytes)}")
+    val downloadingThis = state.downloading == backend
+    Column {
+        SettingsItem(
+            icon = Icons.Rounded.Download,
+            title = name,
+            subtitle = "$description · " + when {
+                downloadingThis -> "Downloading…"
+                availability == null -> "Checking…"
+                availability is LlmAvailability.Available -> "Ready"
+                availability is LlmAvailability.Downloadable -> "Needs download"
+                availability is LlmAvailability.Downloading -> "Downloading…"
+                else -> "Not supported here"
+            },
+            trailing = {
+                if (availability is LlmAvailability.Downloadable && state.downloading == null) {
+                    TextButton(onClick = { onDownload(backend) }) {
+                        Text("Download${formatApproxSize(availability.approxBytes)}", style = MaterialTheme.typography.labelLarge)
+                    }
                 }
-            }
-        }
-        if (isDownloadingThis) {
-            val progress = state.downloadProgress
-            if (progress == null) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            } else {
-                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
-            }
-        }
-    }
-}
-
-@Composable
-private fun AboutSection() {
-    SettingsSection(title = "About") {
-        Text(text = "Finance Tracker", style = MaterialTheme.typography.bodyLarge)
-        Text(
-            text = "Version ${BuildConfig.VERSION_NAME}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            },
         )
+        if (downloadingThis) {
+            val progress = state.downloadProgress
+            val mod = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+            if (progress == null) LinearProgressIndicator(mod) else LinearProgressIndicator(progress = { progress }, modifier = mod)
+        }
     }
 }
 
 @Composable
-private fun SignOutDialog(
-    onDismiss: () -> Unit,
-    onKeep: () -> Unit,
-    onWipe: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Sign out?") },
-        text = {
-            Text("Keep your records on this device, or wipe them from this device before signing out.")
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-        confirmButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = onWipe) {
-                    Text("Wipe data", color = MaterialTheme.colorScheme.error)
-                }
-                TextButton(onClick = onKeep) { Text("Keep on device") }
-            }
-        },
-    )
+private fun DataGroup(session: SessionState, sync: SyncStatus, onBackUpNow: () -> Unit) {
+    FinanceCard {
+        if (session is SessionState.SignedIn) {
+            SettingsItem(
+                icon = Icons.Rounded.CloudSync,
+                title = "Cloud backup",
+                subtitle = backupText(sync),
+                trailing = {
+                    TextButton(onClick = onBackUpNow, enabled = sync != SyncStatus.Running) {
+                        Text("Back up now", style = MaterialTheme.typography.labelLarge)
+                    }
+                },
+            )
+        } else {
+            SettingsItem(
+                icon = Icons.Rounded.CloudSync,
+                title = "Cloud backup is off",
+                subtitle = "Sign in from Profile to back up your entries",
+            )
+        }
+    }
 }
 
-private fun backendLabel(backend: LlmBackend): String = when (backend) {
-    LlmBackend.GEMINI_NANO -> "Gemini Nano (built-in)"
-    LlmBackend.GEMMA_LITERT -> "Gemma (downloaded)"
-    LlmBackend.NONE -> "Basic parser only"
+@Composable
+private fun AboutGroup() {
+    FinanceCard {
+        SettingsItem(icon = Icons.Rounded.Info, title = "Version", subtitle = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+    }
 }
 
-private fun availabilityText(availability: LlmAvailability?, isDownloadingThis: Boolean): String = when {
-    isDownloadingThis -> "Downloading…"
-    availability == null -> "Checking…"
-    availability is LlmAvailability.Available -> "Ready"
-    availability is LlmAvailability.Downloadable -> "Needs download"
-    availability is LlmAvailability.Downloading -> "Downloading…"
-    else -> "Not supported on this device"
+private fun backupText(status: SyncStatus, now: Instant = Instant.now()): String = when (status) {
+    SyncStatus.Disabled -> "Backup is off"
+    SyncStatus.Idle -> "Waiting for changes"
+    SyncStatus.Running -> "Backing up…"
+    is SyncStatus.Done -> {
+        val ago = Duration.between(status.at, now)
+        when {
+            ago < Duration.ofMinutes(1) -> "Backed up just now"
+            ago < Duration.ofHours(1) -> "Backed up ${ago.toMinutes()} min ago"
+            ago < Duration.ofDays(1) -> "Backed up ${ago.toHours()} h ago"
+            else -> "Backed up ${ago.toDays()} days ago"
+        }
+    }
+    is SyncStatus.Failed -> "Backup failed: ${status.message}"
 }
 
 /** " (~1.2 GB)" or "" when the size is unknown. */
@@ -351,26 +392,4 @@ private fun formatApproxSize(bytes: Long?): String {
     } else {
         " (~${String.format(Locale.ENGLISH, "%.0f", bytes / 1_000_000.0)} MB)"
     }
-}
-
-private val BACKUP_TIME_FORMAT: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("MMM d, HH:mm", Locale.ENGLISH)
-
-private fun relativeTime(at: Instant, now: Instant = Instant.now()): String {
-    val elapsed = Duration.between(at, now)
-    return when {
-        elapsed < Duration.ofMinutes(1) -> "just now"
-        elapsed < Duration.ofHours(1) -> "${elapsed.toMinutes()} min ago"
-        elapsed < Duration.ofDays(1) -> "${elapsed.toHours()} h ago"
-        else -> BACKUP_TIME_FORMAT.withZone(ZoneId.systemDefault()).format(at)
-    }
-}
-
-private fun Context.findActivity(): Activity? {
-    var ctx: Context = this
-    while (ctx is ContextWrapper) {
-        if (ctx is Activity) return ctx
-        ctx = ctx.baseContext
-    }
-    return null
 }
