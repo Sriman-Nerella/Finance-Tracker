@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AppFunctionAppMetadata xmlns:appfn="http://schemas.android.com/apk/androidx.appfunctions"
+    appfn:instructions="Personal finance tracker (Indian rupees): logs expenses and income, lists them, and summarizes spending.
+Operational Patterns:
+- Use 'logExpensesFromText' when the user lists several items in natural language; use 'addTransaction' for a single explicit transaction.
+- Use 'listTransactions' to get record ids before calling 'updateTransaction' or 'deleteTransaction'.
+Constraints:
+- Amounts are rupees on input; outputs include display strings like ₹415 and paise values.
+- Dates are ISO yyyy-MM-dd. Deleted records can be restored in the app." />
