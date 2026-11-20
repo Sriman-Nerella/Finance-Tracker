@@ -13,6 +13,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import com.example.financetracker.data.prefs.ThemeMode
 
@@ -24,12 +25,15 @@ object FinanceTheme {
         @Composable get() = LocalFinanceColors.current
 }
 
+// Corner radii in dp. RoundedCornerShape(Int) means *percent* of the shape's size,
+// which made full-width bottom sheets and dialogs bulge (28% of ~400dp ≈ 110dp).
+// extraLarge drives bottom sheets, dialogs and date pickers.
 private val FinanceShapes = Shapes(
-    extraSmall = RoundedCornerShape(8),
-    small = RoundedCornerShape(8),
-    medium = RoundedCornerShape(14),
-    large = RoundedCornerShape(22),
-    extraLarge = RoundedCornerShape(28),
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(14.dp),
+    large = RoundedCornerShape(20.dp),
+    extraLarge = RoundedCornerShape(24.dp),
 )
 
 /**

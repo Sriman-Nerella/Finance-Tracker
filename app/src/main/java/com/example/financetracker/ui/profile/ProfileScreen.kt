@@ -42,6 +42,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -54,12 +55,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.financetracker.BuildConfig
+import com.example.financetracker.auth.UsernameAuth
 import com.example.financetracker.data.prefs.UiPrefs
 import com.example.financetracker.di.AppContainer
 import com.example.financetracker.domain.session.SessionState
 import com.example.financetracker.domain.session.SyncStatus
 import com.example.financetracker.ui.common.AllowanceDialog
+import com.example.financetracker.ui.common.SignInDialog
 import com.example.financetracker.ui.common.FinanceCard
 import com.example.financetracker.ui.common.GroupTitle
 import com.example.financetracker.ui.common.ItemValue
@@ -80,9 +82,10 @@ fun ProfileScreen(container: AppContainer, modifier: Modifier = Modifier) {
         ProfileViewModel(container.transactions, container.categories, container.session, container.sync, UiPrefs.get(context))
     }
     val state by vm.state.collectAsStateWithLifecycle()
-    val activity = context.findActivity()
+    // val activity = context.findActivity()  // needed again with Google sign-in
     var allowanceOpen by rememberSaveable { mutableStateOf(false) }
     var signOutOpen by rememberSaveable { mutableStateOf(false) }
+    var signInOpen by rememberSaveable { mutableStateOf(false) }
     val c = FinanceTheme.colors
     val signedIn = state.session as? SessionState.SignedIn
 
@@ -119,7 +122,8 @@ fun ProfileScreen(container: AppContainer, modifier: Modifier = Modifier) {
                         modifier = Modifier.padding(top = 12.dp),
                     )
                     Text(
-                        signedIn?.email ?: "Not signed in · entries stay on this device",
+                        signedIn?.let { s -> UsernameAuth.fromEmail(s.email)?.let { "@$it" } ?: s.email }
+                            ?: "Not signed in · entries stay on this device",
                         style = MaterialTheme.typography.bodySmall,
                         color = c.inkMuted,
                         textAlign = TextAlign.Center,
@@ -135,7 +139,11 @@ fun ProfileScreen(container: AppContainer, modifier: Modifier = Modifier) {
                 GroupTitle("Account")
                 FinanceCard {
                     if (signedIn != null) {
-                        SettingsItem(Icons.Rounded.AccountCircle, "Google account", subtitle = signedIn.email ?: "Signed in")
+                        SettingsItem(
+                            Icons.Rounded.AccountCircle,
+                            "Account",
+                            subtitle = UsernameAuth.fromEmail(signedIn.email)?.let { "@$it" } ?: signedIn.email ?: "Signed in",
+                        )
                         HorizontalDivider(color = c.lineSoft)
                         SettingsItem(
                             icon = if (state.sync is SyncStatus.Failed) Icons.Rounded.CloudOff else Icons.Rounded.CloudDone,
@@ -148,13 +156,16 @@ fun ProfileScreen(container: AppContainer, modifier: Modifier = Modifier) {
                             },
                         )
                     } else {
-                        val configured = BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank()
+                        // Google sign-in parked until GOOGLE_WEB_CLIENT_ID is configured.
                         SettingsItem(
                             icon = Icons.AutoMirrored.Rounded.Login,
-                            title = if (state.signingIn) "Signing in…" else "Sign in with Google",
-                            subtitle = if (configured) "Back up your entries and use them on other devices" else "Google sign-in isn't set up in this build",
-                            enabled = configured && activity != null && !state.signingIn,
-                            onClick = { activity?.let(vm::signInWithGoogle) },
+                            title = if (state.signingIn) "Signing in…" else "Sign in",
+                            subtitle = "Back up your entries and use them on other devices",
+                            enabled = !state.signingIn,
+                            onClick = {
+                                vm.clearSignInError()
+                                signInOpen = true
+                            },
                             trailing = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.inkMuted) },
                         )
                     }
@@ -196,6 +207,17 @@ fun ProfileScreen(container: AppContainer, modifier: Modifier = Modifier) {
                 }
             }
         }
+    }
+
+    // Close the dialog once sign-in succeeds.
+    LaunchedEffect(signedIn != null) { if (signedIn != null) signInOpen = false }
+    if (signInOpen && signedIn == null) {
+        SignInDialog(
+            busy = state.signingIn,
+            error = state.signInError,
+            onSubmit = vm::signIn,
+            onDismiss = { signInOpen = false },
+        )
     }
 
     if (allowanceOpen) {

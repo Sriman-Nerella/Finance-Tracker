@@ -1,6 +1,6 @@
 package com.example.financetracker.ui.profile
 
-import android.app.Activity
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.financetracker.data.prefs.UiPrefs
@@ -32,10 +32,15 @@ data class ProfileUiState(
     val categoryCount: Int = 0,
     val allowance: Money? = null,
     val signingIn: Boolean = false,
+    val signInError: String? = null,
     val message: String? = null,
 )
 
-private data class Transient(val signingIn: Boolean = false, val message: String? = null)
+private data class Transient(
+    val signingIn: Boolean = false,
+    val signInError: String? = null,
+    val message: String? = null,
+)
 
 class ProfileViewModel(
     transactions: TransactionRepository,
@@ -76,20 +81,25 @@ class ProfileViewModel(
             categoryCount = catCount,
             allowance = allowance,
             signingIn = t.signingIn,
+            signInError = t.signInError,
             message = t.message,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProfileUiState())
 
-    fun signInWithGoogle(activity: Activity) {
+    fun signIn(username: String, password: String) {
         if (transient.value.signingIn) return
         transient.update { Transient(signingIn = true) }
         viewModelScope.launch {
-            val result = session.signInWithGoogle(activity)
+            val result = session.signInWithPassword(username, password)
             transient.update {
-                Transient(message = result.exceptionOrNull()?.let { e -> e.message ?: "Sign-in failed" })
+                Transient(signInError = result.exceptionOrNull()?.let { e -> e.message ?: "Sign-in failed" })
             }
         }
     }
+
+    fun clearSignInError() = transient.update { it.copy(signInError = null) }
+
+    // fun signInWithGoogle(activity: Activity) { ... }  // parked with Google sign-in
 
     fun signOut(wipeLocal: Boolean) {
         viewModelScope.launch {

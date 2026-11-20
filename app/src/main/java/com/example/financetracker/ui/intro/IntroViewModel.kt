@@ -1,6 +1,5 @@
 package com.example.financetracker.ui.intro
 
-import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.financetracker.domain.session.SessionRepository
@@ -12,27 +11,26 @@ import kotlinx.coroutines.launch
 
 data class IntroUiState(
     val busy: Boolean = false,
-    /** One-shot error text; the screen shows it in a snackbar. */
+    /** Sign-in error shown under the form; cleared on the next attempt. */
+    val signInError: String? = null,
+    /** One-shot error text for guest mode; the screen shows it in a snackbar. */
     val error: String? = null,
-    /** False when GOOGLE_WEB_CLIENT_ID is blank in this build. */
-    val googleConfigured: Boolean = true,
+    // Google sign-in parked: was `googleConfigured`, false when GOOGLE_WEB_CLIENT_ID is blank.
 )
 
 class IntroViewModel(
     private val session: SessionRepository,
-    googleConfigured: Boolean,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(IntroUiState(googleConfigured = googleConfigured))
+    private val _state = MutableStateFlow(IntroUiState())
     val uiState: StateFlow<IntroUiState> = _state.asStateFlow()
 
-    fun signInWithGoogle(activity: Activity) {
-        val current = _state.value
-        if (current.busy || !current.googleConfigured) return
-        _state.value = current.copy(busy = true, error = null)
+    fun signIn(username: String, password: String) {
+        if (_state.value.busy) return
+        _state.value = _state.value.copy(busy = true, signInError = null)
         viewModelScope.launch {
             val failure = try {
-                session.signInWithGoogle(activity).exceptionOrNull()
+                session.signInWithPassword(username, password).exceptionOrNull()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -40,10 +38,12 @@ class IntroViewModel(
             }
             _state.value = _state.value.copy(
                 busy = false,
-                error = failure?.let { "Sign-in failed: ${it.message?.takeIf { m -> m.isNotBlank() } ?: "try again"}" },
+                signInError = failure?.let { it.message?.takeIf { m -> m.isNotBlank() } ?: "Sign-in failed, try again" },
             )
         }
     }
+
+    // fun signInWithGoogle(activity: Activity) { ... }  // parked with Google sign-in
 
     fun continueAsGuest() {
         if (_state.value.busy) return

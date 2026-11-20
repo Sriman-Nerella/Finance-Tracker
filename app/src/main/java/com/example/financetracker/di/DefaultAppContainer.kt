@@ -6,7 +6,7 @@ import com.example.financetracker.ai.DefaultChatEntryPipeline
 import com.example.financetracker.ai.llm.DefaultLlmManager
 import com.example.financetracker.ai.parse.RuleBasedEntryParser
 import com.example.financetracker.auth.DefaultSessionRepository
-import com.example.financetracker.auth.GoogleSignInHelper
+// import com.example.financetracker.auth.GoogleSignInHelper  // Google sign-in parked
 import com.example.financetracker.data.db.AppDatabase
 import com.example.financetracker.data.prefs.SessionStore
 import com.example.financetracker.data.prefs.UiPrefs
@@ -55,7 +55,7 @@ class DefaultAppContainer(context: Context) : AppContainer {
         )
 
     override val session: SessionRepository =
-        DefaultSessionRepository(sessionStore, supabase, GoogleSignInHelper(), db, sync)
+        DefaultSessionRepository(sessionStore, supabase, /* GoogleSignInHelper(), */ db, sync)
 
     init {
         SyncDeps.engine = SyncEngine(db, RemoteDataSource(supabase), sessionStore)

@@ -1,6 +1,5 @@
 package com.example.financetracker.domain.session
 
-import android.app.Activity
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
 
@@ -24,8 +23,12 @@ interface SessionRepository {
     val session: Flow<SessionState>
     suspend fun continueAsGuest()
 
-    /** Google via Credential Manager -> Supabase IDToken sign-in. Needs an Activity context for the picker. */
-    suspend fun signInWithGoogle(activity: Activity): Result<SessionState.SignedIn>
+    /** Username + password (Supabase email auth under the hood, see UsernameAuth). */
+    suspend fun signInWithPassword(username: String, password: String): Result<SessionState.SignedIn>
+
+    // Google sign-in is parked until the OAuth client is set up (see GoogleSignInHelper).
+    // /** Google via Credential Manager -> Supabase IDToken sign-in. Needs an Activity context for the picker. */
+    // suspend fun signInWithGoogle(activity: Activity): Result<SessionState.SignedIn>
 
     /** Keeps local data unless [wipeLocal]. */
     suspend fun signOut(wipeLocal: Boolean = false)
