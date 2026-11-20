@@ -1,11 +1,127 @@
 package com.example.financetracker.ui.theme
 
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+/**
+ * Finance Tracker design tokens (see the design system's tokens.json).
+ * Names match the token names; [cat] / [catSoft] index 0 is the income/primary tone, 1..5 the category hues.
+ */
+@Immutable
+data class FinanceColors(
+    val isDark: Boolean,
+    val bg: Color,
+    val surface: Color,
+    val surface2: Color,
+    val line: Color,
+    val lineSoft: Color,
+    val outline: Color,
+    val ink: Color,
+    val inkMuted: Color,
+    val primary: Color,
+    val onPrimary: Color,
+    val primarySoft: Color,
+    val onPrimarySoft: Color,
+    val hero: Color,
+    val heroRaised: Color,
+    val heroTrack: Color,
+    val heroLine: Color,
+    val onHero: Color,
+    val onHeroMuted: Color,
+    val accent: Color,
+    val onAccent: Color,
+    val income: Color,
+    val danger: Color,
+    val dangerSoft: Color,
+    val focus: Color,
+    val cat: List<Color>,
+    val catSoft: List<Color>,
+)
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+val LightFinanceColors = FinanceColors(
+    isDark = false,
+    bg = Color(0xFFF6F5F1),
+    surface = Color(0xFFFFFFFF),
+    surface2 = Color(0xFFEEEDE7),
+    line = Color(0xFFDEDCD3),
+    lineSoft = Color(0xFFEBE9E2),
+    outline = Color(0xFF7A837F),
+    ink = Color(0xFF17201E),
+    inkMuted = Color(0xFF56605C),
+    primary = Color(0xFF0E6B5C),
+    onPrimary = Color(0xFFFFFFFF),
+    primarySoft = Color(0xFFDCEFE9),
+    onPrimarySoft = Color(0xFF0A4A40),
+    hero = Color(0xFF123A33),
+    heroRaised = Color(0xFF1D4A42),
+    heroTrack = Color(0xFF2C5A51),
+    heroLine = Color(0xFF2C5A51),
+    onHero = Color(0xFFF3F7F5),
+    onHeroMuted = Color(0xFFA9C6BD),
+    accent = Color(0xFFF2B84B),
+    onAccent = Color(0xFF2B1D00),
+    income = Color(0xFF0B7A4B),
+    danger = Color(0xFFB3261E),
+    dangerSoft = Color(0xFFFBE4E1),
+    focus = Color(0xFF0E6B5C),
+    cat = listOf(
+        Color(0xFF0A4A40),
+        Color(0xFFA8500A),
+        Color(0xFF2F7A32),
+        Color(0xFF1F5FAE),
+        Color(0xFF8E3C6E),
+        Color(0xFF56616B),
+    ),
+    catSoft = listOf(
+        Color(0xFFDCEFE9),
+        Color(0xFFFBE9D7),
+        Color(0xFFE1F0DE),
+        Color(0xFFDDE9F8),
+        Color(0xFFF4E0EC),
+        Color(0xFFE8EBEE),
+    ),
+)
+
+val DarkFinanceColors = FinanceColors(
+    isDark = true,
+    bg = Color(0xFF101413),
+    surface = Color(0xFF181D1C),
+    surface2 = Color(0xFF232928),
+    line = Color(0xFF2F3634),
+    lineSoft = Color(0xFF252B2A),
+    outline = Color(0xFF88938E),
+    ink = Color(0xFFECEFEC),
+    inkMuted = Color(0xFFA0ACA7),
+    primary = Color(0xFF5FD0B5),
+    onPrimary = Color(0xFF05261F),
+    primarySoft = Color(0xFF173B34),
+    onPrimarySoft = Color(0xFFA9ECDB),
+    hero = Color(0xFF1B3B35),
+    heroRaised = Color(0xFF244B44),
+    heroTrack = Color(0xFF2F5A52),
+    heroLine = Color(0xFF33615A),
+    onHero = Color(0xFFF3F7F5),
+    onHeroMuted = Color(0xFFB0CDC4),
+    accent = Color(0xFFF2B84B),
+    onAccent = Color(0xFF2B1D00),
+    income = Color(0xFF6FDCA8),
+    danger = Color(0xFFFF8F86),
+    dangerSoft = Color(0xFF3D1D1B),
+    focus = Color(0xFF5FD0B5),
+    cat = listOf(
+        Color(0xFFA9ECDB),
+        Color(0xFFF5A35C),
+        Color(0xFF86D08A),
+        Color(0xFF8AB8F5),
+        Color(0xFFE79BC9),
+        Color(0xFFAEB8C1),
+    ),
+    catSoft = listOf(
+        Color(0xFF173B34),
+        Color(0xFF3A2716),
+        Color(0xFF1D3320),
+        Color(0xFF18283D),
+        Color(0xFF3A1F31),
+        Color(0xFF2A3036),
+    ),
+)
