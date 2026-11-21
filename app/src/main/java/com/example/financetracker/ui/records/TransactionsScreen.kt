@@ -1,5 +1,14 @@
 package com.example.financetracker.ui.records
 
+import kotlinx.coroutines.launch
+import androidx.compose.material3.SnackbarDuration
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.rounded.CheckBox
+import androidx.compose.material.icons.rounded.CheckBoxOutlineBlank
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -77,7 +86,8 @@ import com.example.financetracker.ui.theme.FinanceType
 
 /**
  * Every entry, separated by month under "NOV 2026 ——— totals" headers that stick while their month scrolls.
- * Phones open the editor on tap; tablets show the tapped entry in a detail pane. Swipe left to delete, with Undo.
+ * Phones open the editor on tap; tablets show the tapped entry in a detail pane.
+ * Delete: swipe an entry left or right, or long-press to multi-select (with select all) and delete. Both offer Undo.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,17 +101,24 @@ fun TransactionsScreen(container: AppContainer, widthClass: WidthClass, modifier
 
     var editorOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Transaction?>(null) }
+    var confirmDelete by remember { mutableStateOf(false) }
 
     LaunchedEffect(vm) {
         vm.events.collect { event ->
             when (event) {
                 is RecordsEvent.Deleted -> {
-                    val result = snackbar.showSnackbar(
-                        message = "Entry deleted",
-                        actionLabel = "Undo",
-                        withDismissAction = true,
-                    )
-                    if (result == SnackbarResult.ActionPerformed) vm.undo(event.id)
+                    // A newer delete replaces the current snackbar at once, so Undo always undoes the latest delete.
+                    // Shown from a child coroutine so collecting the next event isn't blocked while it's visible.
+                    snackbar.currentSnackbarData?.dismiss()
+                    launch {
+                        val result = snackbar.showSnackbar(
+                            message = if (event.ids.size == 1) "Entry deleted" else "${event.ids.size} entries deleted",
+                            actionLabel = "Undo",
+                            withDismissAction = true,
+                            duration = SnackbarDuration.Long,
+                        )
+                        if (result == SnackbarResult.ActionPerformed) vm.undo(event.ids)
+                    }
                 }
             }
         }
@@ -109,8 +126,11 @@ fun TransactionsScreen(container: AppContainer, widthClass: WidthClass, modifier
 
     val categoryById = remember(state.categories) { state.categories.associateBy { it.id } }
     val c = FinanceTheme.colors
+    BackHandler(enabled = state.selecting) { vm.clearSelection() }
     val onRowClick: (Transaction) -> Unit = { tx ->
-        if (twoPane) {
+        if (state.selecting) {
+            vm.toggleChecked(tx.id)
+        } else if (twoPane) {
             vm.select(tx.id)
         } else {
             editing = tx
@@ -126,11 +146,21 @@ fun TransactionsScreen(container: AppContainer, widthClass: WidthClass, modifier
                 .then(if (widthClass != WidthClass.COMPACT) Modifier.navigationBarsPadding() else Modifier),
         ) {
             Column(if (twoPane) Modifier.width(440.dp).fillMaxHeight() else Modifier.weight(1f).fillMaxHeight()) {
-                ScreenTitleBar("Transactions") {
-                    IconButton(onClick = {
-                        editing = null
-                        editorOpen = true
-                    }) { Icon(Icons.Rounded.Add, contentDescription = "Add entry") }
+                if (state.selecting) {
+                    SelectionBar(
+                        count = state.checkedIds.size,
+                        allChecked = state.allChecked,
+                        onClose = vm::clearSelection,
+                        onToggleAll = vm::toggleSelectAll,
+                        onDelete = { confirmDelete = true },
+                    )
+                } else {
+                    ScreenTitleBar("Transactions") {
+                        IconButton(onClick = {
+                            editing = null
+                            editorOpen = true
+                        }) { Icon(Icons.Rounded.Add, contentDescription = "Add entry") }
+                    }
                 }
                 FilterRow(selected = state.filter, onSelect = vm::setFilter)
                 MonthList(
@@ -138,6 +168,7 @@ fun TransactionsScreen(container: AppContainer, widthClass: WidthClass, modifier
                     categoryById = categoryById,
                     selectedId = if (twoPane) state.selected?.id else null,
                     onRowClick = onRowClick,
+                    onRowLongClick = { tx -> if (state.selecting) vm.toggleChecked(tx.id) else vm.startSelection(tx.id) },
                     onDelete = vm::delete,
                     modifier = Modifier.weight(1f),
                 )
@@ -157,6 +188,22 @@ fun TransactionsScreen(container: AppContainer, widthClass: WidthClass, modifier
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(16.dp))
+    }
+
+    if (confirmDelete) {
+        val n = state.checkedIds.size
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text(if (n == 1) "Delete 1 entry?" else "Delete $n entries?") },
+            text = { Text("You can undo this right after.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    vm.deleteChecked()
+                }) { Text("Delete", color = c.danger) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
+        )
     }
 
     if (editorOpen) {
@@ -222,6 +269,7 @@ private fun MonthList(
     categoryById: Map<String, Category>,
     selectedId: String?,
     onRowClick: (Transaction) -> Unit,
+    onRowLongClick: (Transaction) -> Unit,
     onDelete: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -246,9 +294,10 @@ private fun MonthList(
                     group.items.forEachIndexed { i, tx ->
                         if (i > 0) HorizontalDivider(color = c.lineSoft)
                         androidx.compose.runtime.key(tx.id) {
+                            // Swipe either way to delete (Undo in the snackbar). Off while multi-selecting.
                             val dismissState = rememberSwipeToDismissBoxState(
                                 confirmValueChange = { value ->
-                                    if (value == SwipeToDismissBoxValue.EndToStart) {
+                                    if (value != SwipeToDismissBoxValue.Settled) {
                                         onDelete(tx.id)
                                         true
                                     } else {
@@ -258,15 +307,19 @@ private fun MonthList(
                             )
                             SwipeToDismissBox(
                                 state = dismissState,
-                                enableDismissFromStartToEnd = false,
-                                backgroundContent = { DeleteBackground() },
+                                gesturesEnabled = !state.selecting,
+                                backgroundContent = {
+                                    DeleteBackground(fromStart = dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd)
+                                },
                             ) {
                                 Box(Modifier.background(c.surface)) {
                                     TransactionRow(
                                         tx = tx,
                                         category = categoryById[tx.categoryId],
                                         onClick = { onRowClick(tx) },
-                                        selected = tx.id == selectedId,
+                                        onLongClick = { onRowLongClick(tx) },
+                                        selected = tx.id == selectedId && !state.selecting,
+                                        checked = if (state.selecting) tx.id in state.checkedIds else null,
                                     )
                                 }
                             }
@@ -274,6 +327,40 @@ private fun MonthList(
                     }
                 }
             }
+        }
+    }
+}
+
+/** Contextual top bar while multi-selecting: close, "N selected", select all, delete. */
+@Composable
+private fun SelectionBar(
+    count: Int,
+    allChecked: Boolean,
+    onClose: () -> Unit,
+    onToggleAll: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val c = FinanceTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .padding(start = 4.dp, end = 8.dp, top = 8.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = "Cancel selection") }
+        Text("$count selected", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f).padding(start = 4.dp))
+        TextButton(onClick = onToggleAll) {
+            Icon(
+                if (allChecked) Icons.Rounded.CheckBox else Icons.Rounded.CheckBoxOutlineBlank,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(if (allChecked) "Clear" else "All", style = MaterialTheme.typography.labelLarge)
+        }
+        IconButton(onClick = onDelete) {
+            Icon(Icons.Rounded.Delete, contentDescription = "Delete selected", tint = c.danger)
         }
     }
 }
@@ -302,15 +389,16 @@ private fun MonthHeader(group: MonthGroup) {
     }
 }
 
+/** Red strip revealed under a swiped row; the bin sits on the side the swipe started from. */
 @Composable
-private fun DeleteBackground() {
+private fun DeleteBackground(fromStart: Boolean) {
     val c = FinanceTheme.colors
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(c.dangerSoft)
             .padding(horizontal = 20.dp),
-        contentAlignment = Alignment.CenterEnd,
+        contentAlignment = if (fromStart) Alignment.CenterStart else Alignment.CenterEnd,
     ) {
         Icon(Icons.Rounded.Delete, contentDescription = "Delete", tint = c.danger)
     }

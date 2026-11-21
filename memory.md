@@ -37,4 +37,9 @@ Decisions and setup notes that aren't obvious from the code. Last updated 2026-1
 - To read and drive the UI, prefer `android layout --flat` and `android input tap "text=..."` over screenshots.
 
 ## Git
-- Current feature work is on branch `feature/recurring-budgets`, not yet merged to `main`.
+- Features go on a branch and are merged into `main` through a GitHub PR (recurring/sign-up work: PR #2). Start new work from an up-to-date `main`.
+
+## Transactions
+- Delete one entry: swipe it left or right (Undo in the snackbar).
+- Delete many: long-press to start selection, tap to add or remove entries, "All" to select everything shown, then the bin (with a confirm dialog and Undo).
+- Deleted recurring occurrences stay deleted: they keep their soft-deleted row, so the same date is never added again.
