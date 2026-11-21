@@ -2,7 +2,9 @@ package com.example.financetracker.ui.common
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +21,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Chat
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -85,6 +89,7 @@ fun CategoryIcon(category: Category?, modifier: Modifier = Modifier, size: Dp = 
 }
 
 /** One entry: icon well, title, "Category · Day", signed amount. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TransactionRow(
     tx: Transaction,
@@ -94,6 +99,10 @@ fun TransactionRow(
     selected: Boolean = false,
     showDate: Boolean = true,
     today: LocalDate = LocalDate.now(),
+    /** Long press handler (starts multi-select on the Transactions screen). */
+    onLongClick: (() -> Unit)? = null,
+    /** Non-null while multi-selecting: true shows a check in place of the category icon. */
+    checked: Boolean? = null,
 ) {
     val c = FinanceTheme.colors
     val isIncome = tx.type == TxType.INCOME
@@ -104,14 +113,14 @@ fun TransactionRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(if (selected) c.primarySoft else androidx.compose.ui.graphics.Color.Transparent)
-            .clickable(onClick = onClick)
+            .background(if (selected || checked == true) c.primarySoft else androidx.compose.ui.graphics.Color.Transparent)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .heightIn(min = 64.dp)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        CategoryIcon(category)
+        if (checked != null) SelectionMark(checked) else CategoryIcon(category)
         Column(Modifier.weight(1f)) {
             Text(
                 text = tx.title,
@@ -144,6 +153,26 @@ fun TransactionRow(
             text = tx.amount.signedInr(isIncome),
             style = FinanceType.bodyStrong,
             color = if (isIncome) c.income else c.ink,
+        )
+    }
+}
+
+/** 40dp check well shown instead of the category icon while multi-selecting. */
+@Composable
+private fun SelectionMark(checked: Boolean) {
+    val c = FinanceTheme.colors
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (checked) c.primary else c.surface2),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = if (checked) Icons.Rounded.Check else Icons.Rounded.RadioButtonUnchecked,
+            contentDescription = if (checked) "Selected" else "Not selected",
+            tint = if (checked) c.onPrimary else c.inkMuted,
+            modifier = Modifier.size(22.dp),
         )
     }
 }

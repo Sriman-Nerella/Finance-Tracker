@@ -37,12 +37,19 @@ data class TransactionsUiState(
     val months: List<MonthGroup> = emptyList(),
     /** Selected entry for the tablet detail pane. */
     val selected: Transaction? = null,
+    /** Entries ticked in multi-select mode; empty = not selecting. */
+    val checkedIds: Set<String> = emptySet(),
+    /** Every entry currently shown (after the filter), for "select all". */
+    val visibleIds: List<String> = emptyList(),
     val loaded: Boolean = false,
-)
+) {
+    val selecting: Boolean get() = checkedIds.isNotEmpty()
+    val allChecked: Boolean get() = visibleIds.isNotEmpty() && checkedIds.containsAll(visibleIds)
+}
 
 sealed interface RecordsEvent {
-    /** A record was soft-deleted; the screen offers Undo. */
-    data class Deleted(val id: String) : RecordsEvent
+    /** Records were soft-deleted; the screen offers Undo. */
+    data class Deleted(val ids: List<String>) : RecordsEvent
 }
 
 /** Every entry, separated by month (newest month first). */
@@ -53,6 +60,7 @@ class TransactionsViewModel(
 
     private val filter = MutableStateFlow(TypeFilter.ALL)
     private val selectedId = MutableStateFlow<String?>(null)
+    private val checked = MutableStateFlow<Set<String>>(emptySet())
     private val eventChannel = Channel<RecordsEvent>(Channel.BUFFERED)
 
     val events: Flow<RecordsEvent> = eventChannel.receiveAsFlow()
@@ -62,7 +70,8 @@ class TransactionsViewModel(
         categories.observeAll(),
         filter,
         selectedId,
-    ) { list, cats, f, sel ->
+        checked,
+    ) { list, cats, f, sel, chk ->
         val visible = when (f) {
             TypeFilter.ALL -> list
             TypeFilter.EXPENSES -> list.filter { it.type == TxType.EXPENSE }
@@ -85,6 +94,9 @@ class TransactionsViewModel(
             categories = cats,
             months = months,
             selected = list.firstOrNull { it.id == sel },
+            // Drop ticks for entries that are no longer shown (deleted elsewhere, synced away).
+            checkedIds = chk.intersect(visible.map { it.id }.toSet()),
+            visibleIds = visible.map { it.id },
             loaded = true,
         )
     }.stateIn(
@@ -95,6 +107,34 @@ class TransactionsViewModel(
 
     fun setFilter(value: TypeFilter) {
         filter.value = value
+        checked.value = emptySet()
+    }
+
+    /** Long press: enter multi-select with [id] ticked. */
+    fun startSelection(id: String) {
+        checked.value = setOf(id)
+    }
+
+    /** Tap while selecting. Unticking the last entry leaves multi-select. */
+    fun toggleChecked(id: String) {
+        checked.value = checked.value.let { if (id in it) it - id else it + id }
+    }
+
+    /** Ticks every shown entry, or clears the selection when all are already ticked. */
+    fun toggleSelectAll() {
+        val state = uiState.value
+        checked.value = if (state.allChecked) emptySet() else state.visibleIds.toSet()
+    }
+
+    fun clearSelection() {
+        checked.value = emptySet()
+    }
+
+    fun deleteChecked() {
+        val ids = uiState.value.checkedIds.toList()
+        if (ids.isEmpty()) return
+        checked.value = emptySet()
+        deleteAll(ids)
     }
 
     fun select(id: String?) {
@@ -105,15 +145,17 @@ class TransactionsViewModel(
         viewModelScope.launch { transactions.saveInput(input) }
     }
 
-    fun delete(id: String) {
+    fun delete(id: String) = deleteAll(listOf(id))
+
+    private fun deleteAll(ids: List<String>) {
         viewModelScope.launch {
-            transactions.softDelete(id)
-            if (selectedId.value == id) selectedId.value = null
-            eventChannel.send(RecordsEvent.Deleted(id))
+            ids.forEach { transactions.softDelete(it) }
+            if (selectedId.value in ids) selectedId.value = null
+            eventChannel.send(RecordsEvent.Deleted(ids))
         }
     }
 
-    fun undo(id: String) {
-        viewModelScope.launch { transactions.restore(id) }
+    fun undo(ids: List<String>) {
+        viewModelScope.launch { ids.forEach { transactions.restore(it) } }
     }
 }
