@@ -2,8 +2,8 @@ package com.example.financetracker.di
 
 import com.example.financetracker.ai.ChatEntryPipeline
 import com.example.financetracker.ai.llm.LlmManager
-import com.example.financetracker.domain.repo.BudgetRepository
 import com.example.financetracker.domain.repo.CategoryRepository
+import com.example.financetracker.domain.repo.RecurringRepository
 import com.example.financetracker.domain.repo.TransactionRepository
 import com.example.financetracker.domain.session.SessionRepository
 import com.example.financetracker.domain.session.SyncController
@@ -17,7 +17,7 @@ import com.example.financetracker.domain.session.SyncController
 interface AppContainer {
     val transactions: TransactionRepository
     val categories: CategoryRepository
-    val budgets: BudgetRepository
+    val recurring: RecurringRepository
     val chatPipeline: ChatEntryPipeline
     val llm: LlmManager
     val session: SessionRepository

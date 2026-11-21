@@ -22,7 +22,7 @@ data class StoredSession(
     /** Server-timestamp cursors (Instant.toString form) of the last pulled rows. */
     val lastPulledTransactionsAt: String? = null,
     val lastPulledCategoriesAt: String? = null,
-    val lastPulledBudgetsAt: String? = null,
+    val lastPulledRecurringAt: String? = null,
     val lastSyncAt: Long? = null,
     val lastSyncError: String? = null,
     val lastSyncErrorAt: Long? = null,
@@ -39,7 +39,17 @@ class SessionStore(context: Context) {
         ds.edit {
             it[MODE] = SessionMode.GUEST.name
             it.remove(USER_ID); it.remove(EMAIL); it.remove(NAME)
-            it.remove(PULLED_TX); it.remove(PULLED_CAT); it.remove(PULLED_BUDGET)
+            it.remove(PULLED_TX); it.remove(PULLED_CAT); it.remove(PULLED_RECURRING)
+            it.remove(SYNC_ERR); it.remove(SYNC_ERR_AT)
+        }
+    }
+
+    /** Back to the first-run choice (sign in / create account / guest). Local data is left alone. */
+    suspend fun setUndecided() {
+        ds.edit {
+            it[MODE] = SessionMode.UNDECIDED.name
+            it.remove(USER_ID); it.remove(EMAIL); it.remove(NAME)
+            it.remove(PULLED_TX); it.remove(PULLED_CAT); it.remove(PULLED_RECURRING)
             it.remove(SYNC_ERR); it.remove(SYNC_ERR_AT)
         }
     }
@@ -48,7 +58,7 @@ class SessionStore(context: Context) {
     suspend fun setSignedIn(userId: String, email: String?, displayName: String?) {
         ds.edit {
             if (it[USER_ID] != userId) {
-                it.remove(PULLED_TX); it.remove(PULLED_CAT); it.remove(PULLED_BUDGET); it.remove(SYNC_AT)
+                it.remove(PULLED_TX); it.remove(PULLED_CAT); it.remove(PULLED_RECURRING); it.remove(SYNC_AT)
             }
             it[MODE] = SessionMode.SIGNED_IN.name
             it[USER_ID] = userId
@@ -65,8 +75,8 @@ class SessionStore(context: Context) {
         }
     }
 
-    suspend fun setBudgetCursor(budgets: String) {
-        ds.edit { it[PULLED_BUDGET] = budgets }
+    suspend fun setRecurringCursor(cursor: String) {
+        ds.edit { it[PULLED_RECURRING] = cursor }
     }
 
     suspend fun recordSyncSuccess(at: Long) {
@@ -87,7 +97,7 @@ class SessionStore(context: Context) {
         mode = this[MODE]?.let { m -> SessionMode.entries.firstOrNull { it.name == m } } ?: SessionMode.UNDECIDED,
         userId = this[USER_ID], email = this[EMAIL], displayName = this[NAME],
         lastPulledTransactionsAt = this[PULLED_TX], lastPulledCategoriesAt = this[PULLED_CAT],
-        lastPulledBudgetsAt = this[PULLED_BUDGET],
+        lastPulledRecurringAt = this[PULLED_RECURRING],
         lastSyncAt = this[SYNC_AT], lastSyncError = this[SYNC_ERR], lastSyncErrorAt = this[SYNC_ERR_AT],
     )
 
@@ -98,7 +108,7 @@ class SessionStore(context: Context) {
         val NAME = stringPreferencesKey("display_name")
         val PULLED_TX = stringPreferencesKey("last_pulled_tx_at")
         val PULLED_CAT = stringPreferencesKey("last_pulled_cat_at")
-        val PULLED_BUDGET = stringPreferencesKey("last_pulled_budget_at")
+        val PULLED_RECURRING = stringPreferencesKey("last_pulled_recurring_at")
         val SYNC_AT = longPreferencesKey("last_sync_at")
         val SYNC_ERR = stringPreferencesKey("last_sync_error")
         val SYNC_ERR_AT = longPreferencesKey("last_sync_error_at")

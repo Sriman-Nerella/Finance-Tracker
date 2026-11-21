@@ -86,13 +86,19 @@ class ProfileViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProfileUiState())
 
-    fun signIn(username: String, password: String) {
+    fun signIn(username: String, password: String) =
+        authenticate("Sign-in failed") { session.signInWithPassword(username, password) }
+
+    fun signUp(username: String, password: String, displayName: String?) =
+        authenticate("Couldn't create the account") { session.signUpWithPassword(username, password, displayName) }
+
+    private fun authenticate(fallback: String, call: suspend () -> Result<*>) {
         if (transient.value.signingIn) return
         transient.update { Transient(signingIn = true) }
         viewModelScope.launch {
-            val result = session.signInWithPassword(username, password)
+            val result = call()
             transient.update {
-                Transient(signInError = result.exceptionOrNull()?.let { e -> e.message ?: "Sign-in failed" })
+                Transient(signInError = result.exceptionOrNull()?.let { e -> e.message ?: fallback })
             }
         }
     }

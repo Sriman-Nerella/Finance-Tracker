@@ -1,8 +1,8 @@
 package com.example.financetracker.data.sync
 
 import com.example.financetracker.data.db.AppDatabase
-import com.example.financetracker.data.db.BudgetEntity
 import com.example.financetracker.data.db.CategoryEntity
+import com.example.financetracker.data.db.RecurringEntity
 import com.example.financetracker.data.db.TransactionEntity
 import com.example.financetracker.data.prefs.SessionMode
 import com.example.financetracker.data.prefs.SessionStore
@@ -25,6 +25,8 @@ class SyncEngine(
     private val remote: RemoteDataSource,
     private val store: SessionStore,
     private val clock: Clock = Clock.systemUTC(),
+    /** Runs after a successful pull (adds recurring occurrences that are now due). */
+    private val afterPull: suspend () -> Unit = {},
 ) {
     private val mutex = Mutex()
 
@@ -37,8 +39,10 @@ class SyncEngine(
             }
             push(userId)
             pull(userId, s.lastPulledCategoriesAt, s.lastPulledTransactionsAt)
-            // Last, so a server without the budgets table yet still syncs categories and transactions.
-            syncBudgets(userId, s.lastPulledBudgetsAt)
+            // Last, so a server without the recurring table yet still syncs categories and transactions.
+            syncRecurring(userId, s.lastPulledRecurringAt)
+            // Pulled entries may have occurrences that are due on this device.
+            afterPull()
             store.recordSyncSuccess(clock.millis())
             Result.success(Unit)
         } catch (e: CancellationException) {
@@ -88,18 +92,18 @@ class SyncEngine(
         }
     }
 
-    private suspend fun syncBudgets(userId: String, cursor: String?) {
-        val budgets = db.budgetDao()
-        budgets.dirty().chunked(BATCH).forEach { chunk ->
-            remote.upsertBudgets(chunk.map { it.toRow(userId) })
-            chunk.forEach { budgets.markClean(it.id, it.updatedAt) }
+    private suspend fun syncRecurring(userId: String, cursor: String?) {
+        val dao = db.recurringDao()
+        dao.dirty().chunked(BATCH).forEach { chunk ->
+            remote.upsertRecurring(chunk.map { it.toRow(userId) })
+            chunk.forEach { dao.markClean(it.id, it.updatedAt) }
         }
-        val pulled = remote.fetchBudgets(cursor)
+        val pulled = remote.fetchRecurring(cursor)
         if (pulled.isNotEmpty()) {
-            val local = budgets.getByIds(pulled.map { it.id }).associateBy { it.id }
-            val merged = pulled.mapNotNull { resolveBudget(local[it.id], it.toEntity(userId)) }
-            if (merged.isNotEmpty()) budgets.upsertAll(merged)
-            store.setBudgetCursor(maxCursor(pulled.map { it.serverUpdatedAt }))
+            val local = dao.getByIds(pulled.map { it.id }).associateBy { it.id }
+            val merged = pulled.mapNotNull { resolveRecurring(local[it.id], it.toEntity(userId)) }
+            if (merged.isNotEmpty()) dao.upsertAll(merged)
+            store.setRecurringCursor(maxCursor(pulled.map { it.serverUpdatedAt }))
         }
     }
 
@@ -129,7 +133,7 @@ internal fun resolveCategory(local: CategoryEntity?, remote: CategoryEntity): Ca
     else -> null
 }
 
-internal fun resolveBudget(local: BudgetEntity?, remote: BudgetEntity): BudgetEntity? = when {
+internal fun resolveRecurring(local: RecurringEntity?, remote: RecurringEntity): RecurringEntity? = when {
     local == null -> remote.copy(dirty = false)
     remote.updatedAt > local.updatedAt -> remote.copy(dirty = false)
     else -> null

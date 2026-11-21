@@ -1,9 +1,9 @@
 package com.example.financetracker.data.db
 
-import com.example.financetracker.domain.model.Budget
-import com.example.financetracker.domain.model.BudgetPeriod
 import com.example.financetracker.domain.model.Category
 import com.example.financetracker.domain.model.Money
+import com.example.financetracker.domain.model.Recurring
+import com.example.financetracker.domain.model.RecurringFrequency
 import com.example.financetracker.domain.model.Transaction
 import com.example.financetracker.domain.model.TxSource
 import com.example.financetracker.domain.model.TxType
@@ -69,28 +69,34 @@ fun Category.toSeedEntity(): CategoryEntity =
         ownerId = null,
     )
 
-fun BudgetEntity.toDomain(): Budget =
-    Budget(
+fun RecurringEntity.toDomain(): Recurring =
+    Recurring(
         id = id,
-        categoryId = categoryId,
+        title = title,
         amount = Money(amountMinor),
-        period = runCatching { BudgetPeriod.valueOf(period) }.getOrDefault(BudgetPeriod.MONTHLY),
-        rollover = rollover,
+        type = runCatching { TxType.valueOf(type) }.getOrDefault(TxType.EXPENSE),
+        categoryId = categoryId,
+        note = note,
+        frequency = runCatching { RecurringFrequency.valueOf(frequency) }.getOrDefault(RecurringFrequency.MONTHLY),
         startOn = LocalDate.ofEpochDay(startOn),
+        postedThrough = postedThrough?.let(LocalDate::ofEpochDay),
         createdAt = Instant.ofEpochMilli(createdAt),
         updatedAt = Instant.ofEpochMilli(updatedAt),
         currency = currency,
     )
 
-fun Budget.toEntity(dirty: Boolean, ownerId: String? = null, deletedAt: Long? = null): BudgetEntity =
-    BudgetEntity(
+fun Recurring.toEntity(dirty: Boolean, ownerId: String? = null, deletedAt: Long? = null): RecurringEntity =
+    RecurringEntity(
         id = id,
-        categoryId = categoryId,
+        title = title,
         amountMinor = amount.minor,
         currency = currency,
-        period = period.name,
-        rollover = rollover,
+        type = type.name,
+        categoryId = categoryId,
+        note = note,
+        frequency = frequency.name,
         startOn = startOn.toEpochDay(),
+        postedThrough = postedThrough?.toEpochDay(),
         createdAt = createdAt.toEpochMilli(),
         updatedAt = updatedAt.toEpochMilli(),
         deletedAt = deletedAt,

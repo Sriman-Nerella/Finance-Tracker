@@ -1,11 +1,10 @@
 package com.example.financetracker.domain.repo
 
-import com.example.financetracker.domain.model.Budget
-import com.example.financetracker.domain.model.BudgetInput
-import com.example.financetracker.domain.model.BudgetStatus
 import com.example.financetracker.domain.model.Category
 import com.example.financetracker.domain.model.DashboardSummary
 import com.example.financetracker.domain.model.NewTransaction
+import com.example.financetracker.domain.model.Recurring
+import com.example.financetracker.domain.model.RecurringInput
 import com.example.financetracker.domain.model.Transaction
 import com.example.financetracker.domain.model.TxType
 import kotlinx.coroutines.flow.Flow
@@ -39,22 +38,26 @@ interface TransactionRepository {
     suspend fun restore(id: String)
 }
 
-/** Recurring budgets, Room-backed and synced like transactions (dirty flag, soft deletes). */
-interface BudgetRepository {
-    /** Live budgets, overall first, then by category id and period. */
-    fun observeAll(): Flow<List<Budget>>
+/** Recurring bills/subscriptions/income. Room-backed and synced like transactions (dirty flag, soft deletes). */
+interface RecurringRepository {
+    /** Live entries, by title. */
+    fun observeAll(): Flow<List<Recurring>>
 
-    /** Status of every live budget for the period containing [today]. */
-    fun observeStatuses(today: LocalDate = LocalDate.now()): Flow<List<BudgetStatus>>
+    suspend fun get(id: String): Recurring?
 
-    suspend fun get(id: String): Budget?
+    suspend fun add(input: RecurringInput): Recurring
 
-    suspend fun add(input: BudgetInput): Budget
+    suspend fun update(id: String, input: RecurringInput): Recurring?
 
-    /** Changing the period restarts the rollover history from the current period. */
-    suspend fun update(id: String, input: BudgetInput): Budget?
-
+    /** Stops future occurrences. Entries already in Transactions stay. */
     suspend fun softDelete(id: String)
+
+    /**
+     * Adds every occurrence dated on or before [today] that isn't in Transactions yet.
+     * Safe to call often (app start/resume, after sync): already-added occurrences are skipped.
+     * Returns how many transactions were added.
+     */
+    suspend fun postDue(today: LocalDate = LocalDate.now()): Int
 }
 
 interface CategoryRepository {

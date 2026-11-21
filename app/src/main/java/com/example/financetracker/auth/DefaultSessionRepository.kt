@@ -26,8 +26,10 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 // Google sign-in is parked: GoogleSignInHelper and the IDToken flow are kept, commented out,
 // until a Web OAuth client ID is configured.
@@ -111,6 +113,51 @@ class DefaultSessionRepository(
         }
     }
 
+    override suspend fun signUpWithPassword(
+        username: String,
+        password: String,
+        displayName: String?,
+    ): Result<SessionState.SignedIn> {
+        if (!supabase.isConfigured) return Result.failure(IllegalStateException("Cloud backup isn't configured yet"))
+        UsernameAuth.signUpProblem(username, password)?.let { return Result.failure(IllegalArgumentException(it)) }
+        val uname = UsernameAuth.normalize(username)
+        val name = displayName?.trim()?.takeIf { it.isNotEmpty() }
+        return try {
+            val auth = supabase.client.auth
+            auth.signUpWith(Email) {
+                email = UsernameAuth.toEmail(uname)
+                this.password = password
+                data = buildJsonObject { put("display_name", name ?: uname) }
+            }
+            // With email confirmation off (required for username accounts) sign-up returns a live session.
+            val user = auth.currentSessionOrNull()?.user
+                ?: return Result.failure(
+                    IllegalStateException(
+                        "Account created but it can't be used yet: email confirmation is on in Supabase Auth. " +
+                            "Turn it off, then sign in.",
+                    ),
+                )
+            Result.success(completeSignIn(user, fallbackName = name ?: uname))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: AuthRestException) {
+            val msg = when (e.error) {
+                "user_already_exists", "email_exists" -> "That username is taken"
+                "weak_password" -> e.errorDescription.ifBlank { "Choose a stronger password" }
+                "signup_disabled", "email_provider_disabled" -> "New accounts are turned off right now"
+                "over_request_rate_limit", "over_email_send_rate_limit" -> "Too many attempts. Wait a minute and try again."
+                else -> e.errorDescription.ifBlank { "Couldn't create the account, try again" }
+            }
+            Result.failure(Exception(msg, e))
+        } catch (e: HttpRequestException) {
+            Log.w(TAG, "Sign-up network error", e)
+            Result.failure(Exception("Couldn't reach the server. Check your internet connection and try again.", e))
+        } catch (e: Exception) {
+            Log.w(TAG, "Sign-up failed", e)
+            Result.failure(Exception("Couldn't create the account, try again", e))
+        }
+    }
+
     /**
      * Clears every local table, then restores the built-in categories. Seeding otherwise only
      * runs at app start, so without this the entry sheet would have no categories until restart.
@@ -131,13 +178,13 @@ class DefaultSessionRepository(
             val foreign = db.openHelper.readableDatabase.query(
                 "SELECT 1 FROM transactions WHERE ownerId IS NOT NULL AND ownerId != ? " +
                     "UNION SELECT 1 FROM categories WHERE ownerId IS NOT NULL AND ownerId != ? " +
-                    "UNION SELECT 1 FROM budgets WHERE ownerId IS NOT NULL AND ownerId != ? LIMIT 1",
+                    "UNION SELECT 1 FROM recurring WHERE ownerId IS NOT NULL AND ownerId != ? LIMIT 1",
                 arrayOf<Any?>(state.userId, state.userId, state.userId),
             ).use { it.moveToFirst() }
             if (foreign) wipeLocalData()
             db.transactionDao().claimAll(state.userId)
             db.categoryDao().claimAll(state.userId)
-            db.budgetDao().claimAll(state.userId)
+            db.recurringDao().claimAll(state.userId)
         }
         sync.syncNow()
         return state
@@ -173,8 +220,9 @@ class DefaultSessionRepository(
                 // offline: local state is cleared below regardless
             }
         }
-        // Mode change makes WorkManagerSyncController cancel periodic/pending sync work.
-        store.setGuest()
+        // Back to the login screen. The mode change also makes WorkManagerSyncController
+        // cancel periodic/pending sync work.
+        store.setUndecided()
         if (wipeLocal) withContext(Dispatchers.IO) { wipeLocalData() }
     }
 }

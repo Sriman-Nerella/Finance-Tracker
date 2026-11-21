@@ -364,6 +364,7 @@ private fun DetailPane(
                         TxSource.MANUAL -> "Manually"
                         TxSource.CHAT -> "From chat"
                         TxSource.AGENT -> "By an assistant"
+                        TxSource.RECURRING -> "From a recurring entry"
                     },
                 )
                 tx.note?.takeIf { it.isNotBlank() }?.let { DetailLine("Note", it) }

@@ -8,7 +8,7 @@ import java.time.LocalDate
 enum class TxType { EXPENSE, INCOME }
 
 /** Where a record came from. */
-enum class TxSource { MANUAL, CHAT, AGENT }
+enum class TxSource { MANUAL, CHAT, AGENT, RECURRING }
 
 /** Amounts are always stored in minor units (paise for INR) to avoid floating-point errors. */
 @JvmInline

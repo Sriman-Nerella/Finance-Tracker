@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Category
+import androidx.compose.material.icons.rounded.EventRepeat
 import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.CloudSync
@@ -44,6 +45,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -61,6 +63,7 @@ import com.example.financetracker.di.AppContainer
 import com.example.financetracker.domain.session.SessionState
 import com.example.financetracker.domain.session.SyncStatus
 import com.example.financetracker.ui.common.AllowanceDialog
+import com.example.financetracker.ui.common.AuthActions
 import com.example.financetracker.ui.common.SignInDialog
 import com.example.financetracker.ui.common.FinanceCard
 import com.example.financetracker.ui.common.GroupTitle
@@ -76,7 +79,7 @@ import java.time.Instant
 
 /** Profile: who you are, a few stats, your account and backup, and your money settings. */
 @Composable
-fun ProfileScreen(container: AppContainer, modifier: Modifier = Modifier) {
+fun ProfileScreen(container: AppContainer, modifier: Modifier = Modifier, onOpenRecurring: () -> Unit = {}) {
     val context = LocalContext.current
     val vm: ProfileViewModel = viewModel {
         ProfileViewModel(container.transactions, container.categories, container.session, container.sync, UiPrefs.get(context))
@@ -159,7 +162,7 @@ fun ProfileScreen(container: AppContainer, modifier: Modifier = Modifier) {
                         // Google sign-in parked until GOOGLE_WEB_CLIENT_ID is configured.
                         SettingsItem(
                             icon = Icons.AutoMirrored.Rounded.Login,
-                            title = if (state.signingIn) "Signing in…" else "Sign in",
+                            title = if (state.signingIn) "Signing in…" else "Sign in or create account",
                             subtitle = "Back up your entries and use them on other devices",
                             enabled = !state.signingIn,
                             onClick = {
@@ -184,6 +187,14 @@ fun ProfileScreen(container: AppContainer, modifier: Modifier = Modifier) {
                                 Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.inkMuted)
                             }
                         },
+                    )
+                    HorizontalDivider(color = c.lineSoft)
+                    SettingsItem(
+                        icon = Icons.Rounded.EventRepeat,
+                        title = "Recurring budgets",
+                        subtitle = "Bills, subscriptions and income that repeat",
+                        onClick = onOpenRecurring,
+                        trailing = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.inkMuted) },
                     )
                     HorizontalDivider(color = c.lineSoft)
                     SettingsItem(Icons.Rounded.Category, "Categories", subtitle = "${state.categoryCount} categories")
@@ -215,8 +226,8 @@ fun ProfileScreen(container: AppContainer, modifier: Modifier = Modifier) {
         SignInDialog(
             busy = state.signingIn,
             error = state.signInError,
-            onSubmit = vm::signIn,
-            onDismiss = { signInOpen = false },
+            actions = remember(vm) { AuthActions(vm::signIn, vm::signUp, onModeChange = { vm.clearSignInError() }) },
+            onDismiss = { signInOpen = false; vm.clearSignInError() },
         )
     }
 
