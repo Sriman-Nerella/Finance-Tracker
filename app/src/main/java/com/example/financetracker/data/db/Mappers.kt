@@ -2,6 +2,8 @@ package com.example.financetracker.data.db
 
 import com.example.financetracker.domain.model.Category
 import com.example.financetracker.domain.model.Money
+import com.example.financetracker.domain.model.Recurring
+import com.example.financetracker.domain.model.RecurringFrequency
 import com.example.financetracker.domain.model.Transaction
 import com.example.financetracker.domain.model.TxSource
 import com.example.financetracker.domain.model.TxType
@@ -65,4 +67,39 @@ fun Category.toSeedEntity(): CategoryEntity =
         deletedAt = null,
         dirty = false,
         ownerId = null,
+    )
+
+fun RecurringEntity.toDomain(): Recurring =
+    Recurring(
+        id = id,
+        title = title,
+        amount = Money(amountMinor),
+        type = runCatching { TxType.valueOf(type) }.getOrDefault(TxType.EXPENSE),
+        categoryId = categoryId,
+        note = note,
+        frequency = runCatching { RecurringFrequency.valueOf(frequency) }.getOrDefault(RecurringFrequency.MONTHLY),
+        startOn = LocalDate.ofEpochDay(startOn),
+        postedThrough = postedThrough?.let(LocalDate::ofEpochDay),
+        createdAt = Instant.ofEpochMilli(createdAt),
+        updatedAt = Instant.ofEpochMilli(updatedAt),
+        currency = currency,
+    )
+
+fun Recurring.toEntity(dirty: Boolean, ownerId: String? = null, deletedAt: Long? = null): RecurringEntity =
+    RecurringEntity(
+        id = id,
+        title = title,
+        amountMinor = amount.minor,
+        currency = currency,
+        type = type.name,
+        categoryId = categoryId,
+        note = note,
+        frequency = frequency.name,
+        startOn = startOn.toEpochDay(),
+        postedThrough = postedThrough?.toEpochDay(),
+        createdAt = createdAt.toEpochMilli(),
+        updatedAt = updatedAt.toEpochMilli(),
+        deletedAt = deletedAt,
+        dirty = dirty,
+        ownerId = ownerId,
     )

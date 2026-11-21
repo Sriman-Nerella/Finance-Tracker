@@ -1,6 +1,7 @@
 package com.example.financetracker.data.remote
 
 import com.example.financetracker.data.db.CategoryEntity
+import com.example.financetracker.data.db.RecurringEntity
 import com.example.financetracker.data.db.TransactionEntity
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -96,4 +97,57 @@ fun CategoryPull.toEntity(userId: String) = CategoryEntity(
     id = id, name = name, icon = icon, type = type,
     updatedAt = updatedAt.isoToMillis(), deletedAt = deletedAt?.isoToMillis(),
     dirty = false, ownerId = userId,
+)
+
+@Serializable
+data class RecurringRow(
+    @SerialName("user_id") val userId: String,
+    val id: String,
+    val title: String,
+    @SerialName("amount_minor") val amountMinor: Long,
+    val currency: String,
+    val type: String,
+    @SerialName("category_id") val categoryId: String,
+    val note: String? = null,
+    val frequency: String,
+    @SerialName("start_on") val startOn: String,
+    @SerialName("posted_through") val postedThrough: String? = null,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("updated_at") val updatedAt: String,
+    @SerialName("deleted_at") val deletedAt: String? = null,
+)
+
+@Serializable
+data class RecurringPull(
+    val id: String,
+    val title: String,
+    @SerialName("amount_minor") val amountMinor: Long,
+    val currency: String,
+    val type: String,
+    @SerialName("category_id") val categoryId: String,
+    val note: String? = null,
+    val frequency: String,
+    @SerialName("start_on") val startOn: String,
+    @SerialName("posted_through") val postedThrough: String? = null,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("updated_at") val updatedAt: String,
+    @SerialName("deleted_at") val deletedAt: String? = null,
+    @SerialName("server_updated_at") val serverUpdatedAt: String,
+)
+
+fun RecurringEntity.toRow(userId: String) = RecurringRow(
+    userId = userId, id = id, title = title, amountMinor = amountMinor, currency = currency, type = type,
+    categoryId = categoryId, note = note, frequency = frequency,
+    startOn = LocalDate.ofEpochDay(startOn).toString(),
+    postedThrough = postedThrough?.let { LocalDate.ofEpochDay(it).toString() },
+    createdAt = createdAt.toIso(), updatedAt = updatedAt.toIso(), deletedAt = deletedAt?.toIso(),
+)
+
+fun RecurringPull.toEntity(userId: String) = RecurringEntity(
+    id = id, title = title, amountMinor = amountMinor, currency = currency, type = type,
+    categoryId = categoryId, note = note, frequency = frequency,
+    startOn = LocalDate.parse(startOn).toEpochDay(),
+    postedThrough = postedThrough?.let { LocalDate.parse(it).toEpochDay() },
+    createdAt = createdAt.isoToMillis(), updatedAt = updatedAt.isoToMillis(),
+    deletedAt = deletedAt?.isoToMillis(), dirty = false, ownerId = userId,
 )

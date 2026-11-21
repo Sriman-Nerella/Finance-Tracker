@@ -18,6 +18,7 @@ import com.example.financetracker.domain.model.Transaction
 import com.example.financetracker.domain.model.TxSource
 import com.example.financetracker.domain.model.TxType
 import com.example.financetracker.domain.repo.CategoryRepository
+import com.example.financetracker.domain.repo.RecurringRepository
 import com.example.financetracker.domain.repo.TransactionRepository
 import com.example.financetracker.domain.session.SessionRepository
 import com.example.financetracker.domain.session.SyncController
@@ -177,6 +178,7 @@ private class FakeContainer(
     override val chatPipeline: ChatEntryPipeline,
 ) : AppContainer {
     override val categories: CategoryRepository = FakeCategories()
+    override val recurring: RecurringRepository get() = error("unused in tests")
     override val llm: LlmManager get() = error("unused in tests")
     override val session: SessionRepository get() = error("unused in tests")
     override val sync: SyncController get() = error("unused in tests")

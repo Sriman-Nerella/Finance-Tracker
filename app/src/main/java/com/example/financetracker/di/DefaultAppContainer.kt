@@ -13,11 +13,13 @@ import com.example.financetracker.data.prefs.UiPrefs
 import com.example.financetracker.data.remote.RemoteDataSource
 import com.example.financetracker.data.remote.SupabaseProvider
 import com.example.financetracker.data.repo.OfflineCategoryRepository
+import com.example.financetracker.data.repo.OfflineRecurringRepository
 import com.example.financetracker.data.repo.OfflineTransactionRepository
 import com.example.financetracker.data.sync.SyncDeps
 import com.example.financetracker.data.sync.SyncEngine
 import com.example.financetracker.data.sync.WorkManagerSyncController
 import com.example.financetracker.domain.repo.CategoryRepository
+import com.example.financetracker.domain.repo.RecurringRepository
 import com.example.financetracker.domain.repo.TransactionRepository
 import com.example.financetracker.domain.session.SessionRepository
 import com.example.financetracker.domain.session.SyncController
@@ -43,6 +45,9 @@ class DefaultAppContainer(context: Context) : AppContainer {
 
     override val categories: CategoryRepository = OfflineCategoryRepository(db.categoryDao())
 
+    override val recurring: RecurringRepository =
+        OfflineRecurringRepository(db, onLocalWrite = { sync.requestSync() })
+
     val llmManager = DefaultLlmManager(appContext, appScope)
     override val llm = llmManager
 
@@ -58,7 +63,10 @@ class DefaultAppContainer(context: Context) : AppContainer {
         DefaultSessionRepository(sessionStore, supabase, /* GoogleSignInHelper(), */ db, sync)
 
     init {
-        SyncDeps.engine = SyncEngine(db, RemoteDataSource(supabase), sessionStore)
-        appScope.launch { categories.seedDefaults() }
+        SyncDeps.engine = SyncEngine(db, RemoteDataSource(supabase), sessionStore, afterPull = { recurring.postDue() })
+        appScope.launch {
+            categories.seedDefaults()
+            recurring.postDue()
+        }
     }
 }

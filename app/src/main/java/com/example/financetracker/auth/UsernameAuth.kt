@@ -15,6 +15,27 @@ object UsernameAuth {
 
     fun isValid(username: String): Boolean = VALID.matches(normalize(username))
 
+    /** A requirement a new password must meet; [label] is shown in the sign-up checklist. */
+    class PasswordRule(val label: String, val isMet: (String) -> Boolean)
+
+    const val MIN_PASSWORD = 8
+
+    val PASSWORD_RULES = listOf(
+        PasswordRule("At least $MIN_PASSWORD characters") { it.length >= MIN_PASSWORD },
+        PasswordRule("An uppercase letter (A–Z)") { p -> p.any { it in 'A'..'Z' } },
+        PasswordRule("A lowercase letter (a–z)") { p -> p.any { it in 'a'..'z' } },
+        PasswordRule("A number (0–9)") { p -> p.any { it in '0'..'9' } },
+    )
+
+    fun isStrongPassword(password: String): Boolean = PASSWORD_RULES.all { it.isMet(password) }
+
+    /** First problem with a new account's details, or null when they can be submitted. */
+    fun signUpProblem(username: String, password: String): String? {
+        if (!isValid(username)) return "Usernames are 3–20 letters, numbers, _ or ."
+        val missing = PASSWORD_RULES.firstOrNull { !it.isMet(password) } ?: return null
+        return "Password needs: ${missing.label.replaceFirstChar { it.lowercase() }}"
+    }
+
     fun toEmail(username: String): String = "${normalize(username)}@$EMAIL_DOMAIN"
 
     /** Username for a synthetic address, or null for any other email. */

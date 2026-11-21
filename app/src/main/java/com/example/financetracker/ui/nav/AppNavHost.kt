@@ -56,6 +56,7 @@ import com.example.financetracker.ui.common.WidthClass
 import com.example.financetracker.ui.common.currentWidthClass
 import com.example.financetracker.ui.home.HomeScreen
 import com.example.financetracker.ui.intro.IntroScreen
+import com.example.financetracker.ui.recurring.RecurringScreen
 import com.example.financetracker.ui.profile.ProfileScreen
 import com.example.financetracker.ui.records.TransactionsScreen
 import com.example.financetracker.ui.settings.SettingsScreen
@@ -69,6 +70,7 @@ import kotlinx.serialization.Serializable
 @Serializable object ProfileRoute
 @Serializable object SettingsRoute
 @Serializable object ChatRoute
+@Serializable object RecurringRoute
 
 private data class Tab(
     val route: Any,
@@ -83,7 +85,9 @@ private val TABS = listOf(
     Tab(TransactionsRoute, "Transactions", Icons.AutoMirrored.Outlined.ReceiptLong, Icons.AutoMirrored.Rounded.ReceiptLong) {
         it.isRoute<TransactionsRoute>()
     },
-    Tab(ProfileRoute, "Profile", Icons.Outlined.Person, Icons.Rounded.Person) { it.isRoute<ProfileRoute>() },
+    Tab(ProfileRoute, "Profile", Icons.Outlined.Person, Icons.Rounded.Person) {
+        it.isRoute<ProfileRoute>() || it.isRoute<RecurringRoute>()
+    },
     Tab(SettingsRoute, "Settings", Icons.Outlined.Settings, Icons.Rounded.Settings) { it.isRoute<SettingsRoute>() },
 )
 
@@ -154,7 +158,13 @@ private fun MainShell(container: AppContainer, modifier: Modifier) {
                 TransactionsScreen(container = container, widthClass = widthClass)
             }
             composable<ProfileRoute> {
-                ProfileScreen(container = container)
+                ProfileScreen(
+                    container = container,
+                    onOpenRecurring = { navController.navigate(RecurringRoute) { launchSingleTop = true } },
+                )
+            }
+            composable<RecurringRoute> {
+                RecurringScreen(container = container, onBack = { navController.popBackStack() })
             }
             composable<SettingsRoute> {
                 SettingsScreen(container = container, widthClass = widthClass)

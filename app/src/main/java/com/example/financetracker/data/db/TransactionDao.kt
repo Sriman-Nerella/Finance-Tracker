@@ -59,6 +59,10 @@ interface TransactionDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAll(items: List<TransactionEntity>)
 
+    /** Inserts rows whose id is new; existing ids (including soft-deleted ones) are left untouched. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIgnore(items: List<TransactionEntity>): List<Long>
+
     @Update
     suspend fun update(item: TransactionEntity): Int
 

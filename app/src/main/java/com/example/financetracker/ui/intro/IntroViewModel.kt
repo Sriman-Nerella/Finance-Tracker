@@ -25,12 +25,24 @@ class IntroViewModel(
     private val _state = MutableStateFlow(IntroUiState())
     val uiState: StateFlow<IntroUiState> = _state.asStateFlow()
 
-    fun signIn(username: String, password: String) {
+    fun signIn(username: String, password: String) =
+        authenticate("Sign-in failed, try again") { session.signInWithPassword(username, password) }
+
+    fun signUp(username: String, password: String, displayName: String?) =
+        authenticate("Couldn't create the account, try again") {
+            session.signUpWithPassword(username, password, displayName)
+        }
+
+    fun clearSignInError() {
+        _state.value = _state.value.copy(signInError = null)
+    }
+
+    private fun authenticate(fallback: String, call: suspend () -> Result<*>) {
         if (_state.value.busy) return
         _state.value = _state.value.copy(busy = true, signInError = null)
         viewModelScope.launch {
             val failure = try {
-                session.signInWithPassword(username, password).exceptionOrNull()
+                call().exceptionOrNull()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -38,7 +50,7 @@ class IntroViewModel(
             }
             _state.value = _state.value.copy(
                 busy = false,
-                signInError = failure?.let { it.message?.takeIf { m -> m.isNotBlank() } ?: "Sign-in failed, try again" },
+                signInError = failure?.let { it.message?.takeIf { m -> m.isNotBlank() } ?: fallback },
             )
         }
     }

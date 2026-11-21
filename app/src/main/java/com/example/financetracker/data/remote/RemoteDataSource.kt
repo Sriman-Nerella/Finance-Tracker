@@ -19,6 +19,11 @@ class RemoteDataSource(private val supabase: SupabaseProvider) {
         postgrest.from("categories").upsert(rows)
     }
 
+    suspend fun upsertRecurring(rows: List<RecurringRow>) {
+        if (rows.isEmpty()) return
+        postgrest.from(RECURRING_TABLE).upsert(rows)
+    }
+
     /** All rows with server_updated_at > [since] (null = everything), ascending, fetched page by page. */
     suspend fun fetchTransactions(since: String?, pageSize: Int = PAGE): List<TransactionPull> {
         val out = ArrayList<TransactionPull>()
@@ -54,7 +59,25 @@ class RemoteDataSource(private val supabase: SupabaseProvider) {
         return out
     }
 
+    suspend fun fetchRecurring(since: String?, pageSize: Int = PAGE): List<RecurringPull> {
+        val out = ArrayList<RecurringPull>()
+        var from = 0L
+        while (true) {
+            val page = postgrest.from(RECURRING_TABLE).select {
+                filter { if (since != null) gt("server_updated_at", since) }
+                order("server_updated_at", Order.ASCENDING)
+                order("id", Order.ASCENDING)
+                range(from, from + pageSize - 1)
+            }.decodeList<RecurringPull>()
+            out += page
+            if (page.size < pageSize) break
+            from += pageSize
+        }
+        return out
+    }
+
     private companion object {
         const val PAGE = 500
+        const val RECURRING_TABLE = "recurring_transactions"
     }
 }

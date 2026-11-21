@@ -26,11 +26,21 @@ interface SessionRepository {
     /** Username + password (Supabase email auth under the hood, see UsernameAuth). */
     suspend fun signInWithPassword(username: String, password: String): Result<SessionState.SignedIn>
 
+    /**
+     * Creates a username account and signs straight in. [displayName] is optional (defaults to the username).
+     * Needs email confirmation turned off in Supabase Auth: the hidden addresses can't receive mail.
+     */
+    suspend fun signUpWithPassword(
+        username: String,
+        password: String,
+        displayName: String? = null,
+    ): Result<SessionState.SignedIn>
+
     // Google sign-in is parked until the OAuth client is set up (see GoogleSignInHelper).
     // /** Google via Credential Manager -> Supabase IDToken sign-in. Needs an Activity context for the picker. */
     // suspend fun signInWithGoogle(activity: Activity): Result<SessionState.SignedIn>
 
-    /** Keeps local data unless [wipeLocal]. */
+    /** Returns to the first-run screen (sign in / create account / guest). Keeps local data unless [wipeLocal]. */
     suspend fun signOut(wipeLocal: Boolean = false)
 }
 
