@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -65,6 +66,8 @@ import com.example.financetracker.data.prefs.UiPrefs
 import com.example.financetracker.di.AppContainer
 import com.example.financetracker.domain.session.SessionState
 import com.example.financetracker.domain.session.SyncStatus
+import com.example.financetracker.ui.budget.BudgetsCard
+import com.example.financetracker.ui.budget.BudgetsViewModel
 import com.example.financetracker.ui.common.AllowanceDialog
 import com.example.financetracker.ui.common.FinanceCard
 import com.example.financetracker.ui.common.GroupTitle
@@ -94,13 +97,19 @@ fun SettingsScreen(container: AppContainer, widthClass: WidthClass, modifier: Mo
         SettingsViewModel(container.session, container.sync, container.llm, UiPrefs.get(context))
     }
     val state by vm.state.collectAsStateWithLifecycle()
+    val budgetsVm: BudgetsViewModel = viewModel { BudgetsViewModel(container.budgets, container.categories) }
+    val budgets by budgetsVm.state.collectAsStateWithLifecycle()
     var allowanceOpen by rememberSaveable { mutableStateOf(false) }
     var selected by rememberSaveable { mutableStateOf(Section.BUDGET) }
     val c = FinanceTheme.colors
 
     val sectionContent: @Composable ColumnScope.(Section) -> Unit = { section ->
         when (section) {
-            Section.BUDGET -> BudgetGroup(state) { allowanceOpen = true }
+            Section.BUDGET -> {
+                BudgetGroup(state) { allowanceOpen = true }
+                Spacer(Modifier.height(12.dp))
+                BudgetsCard(budgets, onSave = budgetsVm::save, onDelete = budgetsVm::delete, title = "Recurring budgets")
+            }
             Section.APPEARANCE -> AppearanceGroup(state.themeMode, vm::setThemeMode)
             Section.ASK_AI -> AiGroup(state, vm::setLocalAiEnabled, vm::download, vm::setGemmaEnabled)
             Section.DATA -> DataGroup(state.session, state.sync, vm::syncNow)

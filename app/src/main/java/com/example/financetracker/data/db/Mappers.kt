@@ -1,5 +1,7 @@
 package com.example.financetracker.data.db
 
+import com.example.financetracker.domain.model.Budget
+import com.example.financetracker.domain.model.BudgetPeriod
 import com.example.financetracker.domain.model.Category
 import com.example.financetracker.domain.model.Money
 import com.example.financetracker.domain.model.Transaction
@@ -65,4 +67,33 @@ fun Category.toSeedEntity(): CategoryEntity =
         deletedAt = null,
         dirty = false,
         ownerId = null,
+    )
+
+fun BudgetEntity.toDomain(): Budget =
+    Budget(
+        id = id,
+        categoryId = categoryId,
+        amount = Money(amountMinor),
+        period = runCatching { BudgetPeriod.valueOf(period) }.getOrDefault(BudgetPeriod.MONTHLY),
+        rollover = rollover,
+        startOn = LocalDate.ofEpochDay(startOn),
+        createdAt = Instant.ofEpochMilli(createdAt),
+        updatedAt = Instant.ofEpochMilli(updatedAt),
+        currency = currency,
+    )
+
+fun Budget.toEntity(dirty: Boolean, ownerId: String? = null, deletedAt: Long? = null): BudgetEntity =
+    BudgetEntity(
+        id = id,
+        categoryId = categoryId,
+        amountMinor = amount.minor,
+        currency = currency,
+        period = period.name,
+        rollover = rollover,
+        startOn = startOn.toEpochDay(),
+        createdAt = createdAt.toEpochMilli(),
+        updatedAt = updatedAt.toEpochMilli(),
+        deletedAt = deletedAt,
+        dirty = dirty,
+        ownerId = ownerId,
     )

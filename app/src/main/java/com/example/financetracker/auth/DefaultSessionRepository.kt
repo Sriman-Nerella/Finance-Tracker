@@ -130,12 +130,14 @@ class DefaultSessionRepository(
             // account; never re-own them into this one. Guest rows (ownerId null) are kept.
             val foreign = db.openHelper.readableDatabase.query(
                 "SELECT 1 FROM transactions WHERE ownerId IS NOT NULL AND ownerId != ? " +
-                    "UNION SELECT 1 FROM categories WHERE ownerId IS NOT NULL AND ownerId != ? LIMIT 1",
-                arrayOf<Any?>(state.userId, state.userId),
+                    "UNION SELECT 1 FROM categories WHERE ownerId IS NOT NULL AND ownerId != ? " +
+                    "UNION SELECT 1 FROM budgets WHERE ownerId IS NOT NULL AND ownerId != ? LIMIT 1",
+                arrayOf<Any?>(state.userId, state.userId, state.userId),
             ).use { it.moveToFirst() }
             if (foreign) wipeLocalData()
             db.transactionDao().claimAll(state.userId)
             db.categoryDao().claimAll(state.userId)
+            db.budgetDao().claimAll(state.userId)
         }
         sync.syncNow()
         return state

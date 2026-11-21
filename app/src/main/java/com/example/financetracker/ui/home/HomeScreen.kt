@@ -53,6 +53,8 @@ import com.example.financetracker.domain.model.Transaction
 import com.example.financetracker.ui.common.AllowanceDialog
 import com.example.financetracker.ui.common.CardHeader
 import com.example.financetracker.ui.common.DividedRows
+import com.example.financetracker.ui.budget.BudgetsCard
+import com.example.financetracker.ui.budget.BudgetsViewModel
 import com.example.financetracker.ui.common.FinanceCard
 import com.example.financetracker.ui.common.TransactionEditorSheet
 import com.example.financetracker.ui.common.TransactionRow
@@ -81,6 +83,8 @@ fun HomeScreen(
         HomeViewModel(container.transactions, container.categories, UiPrefs.get(context), container.session)
     }
     val state by vm.uiState.collectAsStateWithLifecycle()
+    val budgetsVm: BudgetsViewModel = viewModel { BudgetsViewModel(container.budgets, container.categories) }
+    val budgets by budgetsVm.state.collectAsStateWithLifecycle()
 
     var editorOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Transaction?>(null) }
@@ -121,6 +125,9 @@ fun HomeScreen(
                         )
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                        if (budgets.statuses.isNotEmpty()) {
+                            BudgetsCard(budgets, onSave = budgetsVm::save, onDelete = budgetsVm::delete)
+                        }
                         CategoryBreakdown(state)
                         RecentCard(state, categoryById, onSeeAll, openEntry)
                     }
@@ -151,6 +158,11 @@ fun HomeScreen(
                         onEntryClick = openEntry,
                         modifier = itemMod,
                     )
+                }
+                if (budgets.statuses.isNotEmpty()) {
+                    item(key = "budgets") {
+                        BudgetsCard(budgets, onSave = budgetsVm::save, onDelete = budgetsVm::delete, modifier = itemMod)
+                    }
                 }
                 item(key = "breakdown") { CategoryBreakdown(state, itemMod) }
                 item(key = "recent") { RecentCard(state, categoryById, onSeeAll, openEntry, itemMod) }

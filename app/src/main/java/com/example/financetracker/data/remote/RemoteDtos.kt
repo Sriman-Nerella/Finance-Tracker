@@ -1,5 +1,6 @@
 package com.example.financetracker.data.remote
 
+import com.example.financetracker.data.db.BudgetEntity
 import com.example.financetracker.data.db.CategoryEntity
 import com.example.financetracker.data.db.TransactionEntity
 import kotlinx.serialization.SerialName
@@ -96,4 +97,47 @@ fun CategoryPull.toEntity(userId: String) = CategoryEntity(
     id = id, name = name, icon = icon, type = type,
     updatedAt = updatedAt.isoToMillis(), deletedAt = deletedAt?.isoToMillis(),
     dirty = false, ownerId = userId,
+)
+
+@Serializable
+data class BudgetRow(
+    @SerialName("user_id") val userId: String,
+    val id: String,
+    @SerialName("category_id") val categoryId: String? = null,
+    @SerialName("amount_minor") val amountMinor: Long,
+    val currency: String,
+    val period: String,
+    val rollover: Boolean,
+    @SerialName("start_on") val startOn: String,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("updated_at") val updatedAt: String,
+    @SerialName("deleted_at") val deletedAt: String? = null,
+)
+
+@Serializable
+data class BudgetPull(
+    val id: String,
+    @SerialName("category_id") val categoryId: String? = null,
+    @SerialName("amount_minor") val amountMinor: Long,
+    val currency: String,
+    val period: String,
+    val rollover: Boolean,
+    @SerialName("start_on") val startOn: String,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("updated_at") val updatedAt: String,
+    @SerialName("deleted_at") val deletedAt: String? = null,
+    @SerialName("server_updated_at") val serverUpdatedAt: String,
+)
+
+fun BudgetEntity.toRow(userId: String) = BudgetRow(
+    userId = userId, id = id, categoryId = categoryId, amountMinor = amountMinor, currency = currency,
+    period = period, rollover = rollover, startOn = LocalDate.ofEpochDay(startOn).toString(),
+    createdAt = createdAt.toIso(), updatedAt = updatedAt.toIso(), deletedAt = deletedAt?.toIso(),
+)
+
+fun BudgetPull.toEntity(userId: String) = BudgetEntity(
+    id = id, categoryId = categoryId, amountMinor = amountMinor, currency = currency, period = period,
+    rollover = rollover, startOn = LocalDate.parse(startOn).toEpochDay(),
+    createdAt = createdAt.isoToMillis(), updatedAt = updatedAt.isoToMillis(),
+    deletedAt = deletedAt?.isoToMillis(), dirty = false, ownerId = userId,
 )

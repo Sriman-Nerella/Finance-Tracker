@@ -19,6 +19,11 @@ class RemoteDataSource(private val supabase: SupabaseProvider) {
         postgrest.from("categories").upsert(rows)
     }
 
+    suspend fun upsertBudgets(rows: List<BudgetRow>) {
+        if (rows.isEmpty()) return
+        postgrest.from("budgets").upsert(rows)
+    }
+
     /** All rows with server_updated_at > [since] (null = everything), ascending, fetched page by page. */
     suspend fun fetchTransactions(since: String?, pageSize: Int = PAGE): List<TransactionPull> {
         val out = ArrayList<TransactionPull>()
@@ -47,6 +52,23 @@ class RemoteDataSource(private val supabase: SupabaseProvider) {
                 order("id", Order.ASCENDING)
                 range(from, from + pageSize - 1)
             }.decodeList<CategoryPull>()
+            out += page
+            if (page.size < pageSize) break
+            from += pageSize
+        }
+        return out
+    }
+
+    suspend fun fetchBudgets(since: String?, pageSize: Int = PAGE): List<BudgetPull> {
+        val out = ArrayList<BudgetPull>()
+        var from = 0L
+        while (true) {
+            val page = postgrest.from("budgets").select {
+                filter { if (since != null) gt("server_updated_at", since) }
+                order("server_updated_at", Order.ASCENDING)
+                order("id", Order.ASCENDING)
+                range(from, from + pageSize - 1)
+            }.decodeList<BudgetPull>()
             out += page
             if (page.size < pageSize) break
             from += pageSize

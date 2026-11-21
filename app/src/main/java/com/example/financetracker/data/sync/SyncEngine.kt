@@ -1,6 +1,7 @@
 package com.example.financetracker.data.sync
 
 import com.example.financetracker.data.db.AppDatabase
+import com.example.financetracker.data.db.BudgetEntity
 import com.example.financetracker.data.db.CategoryEntity
 import com.example.financetracker.data.db.TransactionEntity
 import com.example.financetracker.data.prefs.SessionMode
@@ -36,6 +37,8 @@ class SyncEngine(
             }
             push(userId)
             pull(userId, s.lastPulledCategoriesAt, s.lastPulledTransactionsAt)
+            // Last, so a server without the budgets table yet still syncs categories and transactions.
+            syncBudgets(userId, s.lastPulledBudgetsAt)
             store.recordSyncSuccess(clock.millis())
             Result.success(Unit)
         } catch (e: CancellationException) {
@@ -85,6 +88,21 @@ class SyncEngine(
         }
     }
 
+    private suspend fun syncBudgets(userId: String, cursor: String?) {
+        val budgets = db.budgetDao()
+        budgets.dirty().chunked(BATCH).forEach { chunk ->
+            remote.upsertBudgets(chunk.map { it.toRow(userId) })
+            chunk.forEach { budgets.markClean(it.id, it.updatedAt) }
+        }
+        val pulled = remote.fetchBudgets(cursor)
+        if (pulled.isNotEmpty()) {
+            val local = budgets.getByIds(pulled.map { it.id }).associateBy { it.id }
+            val merged = pulled.mapNotNull { resolveBudget(local[it.id], it.toEntity(userId)) }
+            if (merged.isNotEmpty()) budgets.upsertAll(merged)
+            store.setBudgetCursor(maxCursor(pulled.map { it.serverUpdatedAt }))
+        }
+    }
+
     private fun maxCursor(stamps: List<String>): String =
         stamps.map { Instant.parse(it.normalizeTimestamp()) }.max().toString()
 
@@ -106,6 +124,12 @@ internal fun resolve(local: TransactionEntity?, remote: TransactionEntity): Tran
 }
 
 internal fun resolveCategory(local: CategoryEntity?, remote: CategoryEntity): CategoryEntity? = when {
+    local == null -> remote.copy(dirty = false)
+    remote.updatedAt > local.updatedAt -> remote.copy(dirty = false)
+    else -> null
+}
+
+internal fun resolveBudget(local: BudgetEntity?, remote: BudgetEntity): BudgetEntity? = when {
     local == null -> remote.copy(dirty = false)
     remote.updatedAt > local.updatedAt -> remote.copy(dirty = false)
     else -> null
